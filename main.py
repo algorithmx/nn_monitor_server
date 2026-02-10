@@ -49,6 +49,7 @@ class Metadata(BaseModel):
     timestamp: float = Field(..., gt=0, description="Unix epoch timestamp")
     global_step: int = Field(..., ge=0, description="Training step number")
     batch_size: int = Field(..., gt=0, description="Batch size")
+    layer_groups: Optional[Dict[str, List[str]]] = Field(None, description="Optional grouping of layers by group name mapping to list of layer_ids")
 
 class IntermediateFeatures(BaseModel):
     activation_std: float = Field(..., ge=0, description="Standard deviation of activations (can be 0 for dead neurons)")
@@ -229,6 +230,7 @@ class StepData(BaseModel):
     batch_size: int = Field(..., gt=0, description="Batch size")
     layers: List[Dict[str, Any]] = Field(..., min_length=1, description="Layer statistics")
     cross_layer: Dict[str, Any] = Field(..., description="Cross-layer analysis")
+    layer_groups: Optional[Dict[str, List[str]]] = Field(None, description="Optional grouping of layers by group name")
 
 
 class HealthResponse(BaseModel):
@@ -281,7 +283,8 @@ class MetricsStore:
                 timestamp=payload.metadata.timestamp,
                 batch_size=payload.metadata.batch_size,
                 layers=[layer.model_dump() for layer in payload.layer_statistics],
-                cross_layer=payload.cross_layer_analysis.model_dump()
+                cross_layer=payload.cross_layer_analysis.model_dump(),
+                layer_groups=payload.metadata.layer_groups
             )
 
             # Insert in order, avoid duplicates
