@@ -440,9 +440,11 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         # Send current runs list on connect
         runs = await store.get_all_runs()
+        # Convert Pydantic models to dicts for JSON serialization
+        runs_dict = {run_id: run.model_dump() for run_id, run in runs.items()}
         await websocket.send_json({
             'type': 'initial_runs',
-            'data': runs
+            'data': runs_dict
         })
 
         # Keep connection alive and handle client messages
@@ -467,7 +469,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         await websocket.send_json({
                             'type': 'run_history',
                             'run_id': run_id,
-                            'data': run
+                            'data': run.model_dump()
                         })
                     else:
                         await websocket.send_json({

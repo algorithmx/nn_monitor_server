@@ -1,5 +1,7 @@
 # JSON Schema Documentation
 
+This document describes the JSON schema for submitting metrics to the Neural Network Training Monitor. For API endpoint details and WebSocket protocol, see [API.md](API.md).
+
 ## API Endpoint
 
 ```

@@ -74,6 +74,192 @@
             50% { opacity: 0.5; transform: scale(0.9); }
         }
 
+        /* History controls section */
+        .history-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+        }
+
+        /* Mode badge */
+        .mode-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 3px;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-weight: 600;
+            background: var(--bg);
+            border: 1px solid var(--border);
+        }
+
+        .mode-badge.live {
+            background: rgba(74, 153, 137, 0.15);
+            border-color: var(--health-good);
+            color: var(--health-good);
+        }
+
+        .mode-badge.live .badge-dot {
+            background: var(--health-good);
+            animation: pulse 2s infinite;
+        }
+
+        .mode-badge.paused {
+            background: rgba(200, 132, 68, 0.15);
+            border-color: var(--health-warn);
+            color: var(--health-warn);
+        }
+
+        .mode-badge.paused .badge-dot {
+            background: var(--health-warn);
+            animation: none;
+        }
+
+        .badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        /* Live/Pause button */
+        .btn-live {
+            padding: 6px 14px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text-bright);
+            font-family: inherit;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            border-radius: 3px;
+            transition: all 0.15s;
+        }
+
+        .btn-live:hover {
+            border-color: #333;
+        }
+
+        .btn-live.live-active {
+            background: rgba(74, 153, 137, 0.2);
+            border-color: var(--health-good);
+            color: var(--health-good);
+            animation: subtle-pulse 2s infinite;
+        }
+
+        .btn-live.paused-active {
+            background: rgba(200, 132, 68, 0.2);
+            border-color: var(--health-warn);
+            color: var(--health-warn);
+        }
+
+        @keyframes subtle-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(74, 153, 137, 0.4); }
+            50% { box-shadow: 0 0 0 3px rgba(74, 153, 137, 0); }
+        }
+
+        /* Navigation controls */
+        .nav-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-btn {
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-family: inherit;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+
+        .nav-btn:hover:not(:disabled) {
+            border-color: #333;
+            color: var(--text-bright);
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* Slider */
+        .step-slider-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .step-slider {
+            flex: 1;
+            min-width: 120px;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: var(--border);
+            outline: none;
+            border-radius: 2px;
+        }
+
+        .step-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            background: var(--text-bright);
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.15s;
+        }
+
+        .step-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            background: var(--health-good);
+        }
+
+        .step-slider::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            background: var(--text-bright);
+            cursor: pointer;
+            border: none;
+            border-radius: 50%;
+            transition: all 0.15s;
+        }
+
+        .step-slider::-moz-range-thumb:hover {
+            transform: scale(1.2);
+            background: var(--health-good);
+        }
+
+        .step-slider:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .step-display {
+            min-width: 60px;
+            text-align: right;
+            font-size: 10px;
+            font-variant-numeric: tabular-nums;
+            color: var(--text-bright);
+        }
+
         /* Main layout */
         main {
             flex: 1;
@@ -299,6 +485,27 @@
         </div>
     </header>
 
+    <div class="history-controls">
+        <div class="mode-badge live" id="modeBadge">
+            <span class="badge-dot"></span>
+            <span id="modeText">Live</span>
+        </div>
+
+        <button class="btn-live live-active" id="btnLivePause">⏸ Pause</button>
+
+        <div class="nav-controls" id="navControls" style="opacity: 0.3; pointer-events: none;">
+            <button class="nav-btn" id="btnFirst" title="First step">⏮</button>
+            <button class="nav-btn" id="btnPrev" title="Previous step">◀</button>
+            <button class="nav-btn" id="btnNext" title="Next step">▶</button>
+            <button class="nav-btn" id="btnLast" title="Latest step">⏭</button>
+        </div>
+
+        <div class="step-slider-container">
+            <input type="range" class="step-slider" id="stepSlider" min="0" max="100" value="0" disabled>
+            <span class="step-display" id="stepDisplay">—</span>
+        </div>
+    </div>
+
     <main>
         <aside>
             <div class="control">
@@ -337,11 +544,19 @@
             runs: {},
             currentRun: null,
             runData: null,
-            history: {} // { layerId: [{step, value}, ...] }
+            history: {}, // { layerId: [{step, actStd, gradNorm}, ...] }
+            // History navigation state
+            isLiveMode: true,           // true = showing live updates, false = paused on specific step
+            selectedStep: null,         // step number being viewed (null = latest when liveMode)
+            stepsList: [],              // sorted list of all available step numbers for current run
+            lastSeenStep: null,         // track the last step we saw for smart resume
+            lastViewedStep: null,       // track the last step the user was viewing before live mode
+            isTrainingActive: true      // track if training is still receiving updates
         };
 
         const CONFIG = {
             historyLen: 50,
+            trainingTimeoutMs: 10000,
             thresholds: {
                 gradNorm: { low: 0.001, high: 10 },
                 gradMax: { high: 10 },
@@ -355,9 +570,23 @@
             state.ws = new WebSocket(`${proto}//${location.host}/ws`);
 
             state.ws.onopen = () => setStatus(true, 'live');
-            state.ws.onclose = () => setStatus(false, 'reconnecting');
+            state.ws.onclose = () => {
+                setStatus(false, 'reconnecting');
+                // Try to reconnect after 2 seconds
+                setTimeout(() => {
+                    if (state.ws?.readyState === WebSocket.CLOSED) {
+                        connect();
+                    }
+                }, 2000);
+            };
             state.ws.onerror = () => setStatus(false, 'error');
-            state.ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+            state.ws.onmessage = (e) => {
+                try {
+                    handleMessage(JSON.parse(e.data));
+                } catch (err) {
+                    console.error('Failed to handle WebSocket message:', err, e.data);
+                }
+            };
         }
 
         function setStatus(connected, text) {
@@ -370,6 +599,8 @@
                 case 'initial_runs':
                     state.runs = msg.data;
                     updateSelect();
+                    // Update status to live since we successfully received data
+                    setStatus(true, 'live');
                     break;
 
                 case 'new_metrics':
@@ -387,13 +618,35 @@
                     }
 
                     if (msg.run_id === state.currentRun) {
+                        resetTrainingTimeout();
                         addStep(msg.data);
+
+                        // Update step_count based on actual steps array
+                        if (state.runData && state.runData.steps) {
+                            state.runs[msg.run_id].step_count = state.runData.steps.length;
+                            state.runs[msg.run_id].last_update = new Date().toISOString();
+                            updateSelect();
+                        }
+
+                        // If in paused mode, update UI elements but don't disrupt the user's view
+                        if (!state.isLiveMode) {
+                            updateStepsList();
+                            updateHistoryUI();
+                        }
                     }
                     break;
 
                 case 'run_history':
                     state.runData = msg.data;
                     msg.data.steps.forEach(addStep);
+                    if (msg.data.steps.length > 0) {
+                        state.lastSeenStep = msg.data.steps[msg.data.steps.length - 1].step;
+                    }
+                    // Update step_count in runs info
+                    if (state.runs[msg.run_id] && state.runData) {
+                        state.runs[msg.run_id].step_count = state.runData.steps.length;
+                        updateSelect();
+                    }
                     break;
             }
         }
@@ -416,6 +669,17 @@
             document.getElementById('runSelect').value = id;
             state.history = {};
 
+            // Reset history navigation state
+            state.isLiveMode = true;
+            state.selectedStep = null;
+            state.stepsList = [];
+            state.isTrainingActive = true;
+            state.lastSeenStep = null;
+            state.lastViewedStep = null;
+            resetTrainingTimeout();
+
+            updateHistoryUI();
+
             if (state.ws?.readyState === WebSocket.OPEN) {
                 state.ws.send(JSON.stringify({ action: 'subscribe_run', run_id: id }));
             }
@@ -423,6 +687,171 @@
 
         document.getElementById('runSelect').addEventListener('change', (e) => {
             if (e.target.value) selectRun(e.target.value);
+        });
+
+        // Toggle between live and paused mode
+        function toggleLiveMode() {
+            const wasPaused = !state.isLiveMode;
+
+            if (wasPaused) {
+                // Returning to live mode - check if training is still active
+                if (!state.isTrainingActive && state.lastViewedStep !== null) {
+                    // Training ended, stay on last viewed step (remain in paused mode)
+                    state.selectedStep = state.lastViewedStep;
+                    state.isLiveMode = false;
+                } else {
+                    // Training is active, go to live mode
+                    state.isLiveMode = true;
+                    state.selectedStep = null;
+                    state.lastViewedStep = null;
+                }
+            } else {
+                // Pausing - capture current step
+                const steps = state.runData?.steps || [];
+                if (steps.length > 0) {
+                    state.selectedStep = steps[steps.length - 1].step;
+                }
+                state.isLiveMode = false;
+                state.lastViewedStep = null;
+            }
+
+            updateHistoryUI();
+            render();
+        }
+
+        // Update UI based on current mode
+        function updateHistoryUI() {
+            const modeBadge = document.getElementById('modeBadge');
+            const modeText = document.getElementById('modeText');
+            const btnLivePause = document.getElementById('btnLivePause');
+            const navControls = document.getElementById('navControls');
+            const stepSlider = document.getElementById('stepSlider');
+            const stepDisplay = document.getElementById('stepDisplay');
+
+            const steps = state.runData?.steps || [];
+            const currentStep = state.isLiveMode ? (steps[steps.length - 1]?.step ?? null) : state.selectedStep;
+            const totalSteps = steps.length;
+            const stepIndex = state.stepsList.indexOf(currentStep);
+
+            if (state.isLiveMode) {
+                // Live mode
+                modeBadge.className = 'mode-badge live';
+                const trainingStatus = state.isTrainingActive ? 'Live' : 'Live (ended)';
+                modeText.textContent = trainingStatus;
+                btnLivePause.className = 'btn-live live-active';
+                btnLivePause.textContent = '⏸ Pause';
+
+                navControls.style.opacity = '0.3';
+                navControls.style.pointerEvents = 'none';
+                stepSlider.disabled = true;
+
+                stepDisplay.textContent = steps.length > 0 ? `step ${steps[steps.length - 1].step}` : '—';
+            } else {
+                // Paused mode
+                const stepLabel = totalSteps > 0 ? `${stepIndex + 1} / ${totalSteps}` : '—';
+                modeBadge.className = 'mode-badge paused';
+                modeText.textContent = `Paused @ ${stepLabel}`;
+                btnLivePause.className = 'btn-live paused-active';
+                btnLivePause.textContent = '▶ Live';
+
+                navControls.style.opacity = '1';
+                navControls.style.pointerEvents = 'auto';
+                stepSlider.disabled = false;
+
+                stepDisplay.textContent = currentStep !== null ? `step ${currentStep}` : '—';
+
+                // Update slider
+                if (state.stepsList.length > 0) {
+                    stepSlider.min = 0;
+                    stepSlider.max = state.stepsList.length - 1;
+                    stepSlider.value = stepIndex;
+                }
+
+                // Update nav button states
+                document.getElementById('btnFirst').disabled = stepIndex <= 0;
+                document.getElementById('btnPrev').disabled = stepIndex <= 0;
+                document.getElementById('btnNext').disabled = stepIndex >= totalSteps - 1;
+                document.getElementById('btnLast').disabled = stepIndex >= totalSteps - 1;
+            }
+        }
+
+        // Navigate to a specific step by direction
+        function navigateToStep(direction) {
+            const steps = state.runData?.steps || [];
+            if (steps.length === 0) return;
+
+            const currentIndex = state.stepsList.indexOf(state.selectedStep);
+            let newIndex = currentIndex;
+
+            switch(direction) {
+                case 'first':
+                    newIndex = 0;
+                    break;
+                case 'prev':
+                    newIndex = Math.max(0, currentIndex - 1);
+                    break;
+                case 'next':
+                    newIndex = Math.min(state.stepsList.length - 1, currentIndex + 1);
+                    break;
+                case 'last':
+                    newIndex = state.stepsList.length - 1;
+                    break;
+            }
+
+            navigateToStepIndex(newIndex);
+        }
+
+        // Navigate to a specific step by index
+        function navigateToStepIndex(index) {
+            if (index < 0 || index >= state.stepsList.length) return;
+
+            state.selectedStep = state.stepsList[index];
+            state.lastViewedStep = state.selectedStep; // Save for smart resume
+            state.isLiveMode = false;
+            updateHistoryUI();
+            render();
+        }
+
+        // Update steps list when new data arrives
+        function updateStepsList() {
+            const steps = state.runData?.steps || [];
+            state.stepsList = steps.map(s => s.step).sort((a, b) => a - b);
+
+            // Update slider range
+            const slider = document.getElementById('stepSlider');
+            if (state.stepsList.length > 0) {
+                slider.min = 0;
+                slider.max = state.stepsList.length - 1;
+            }
+        }
+
+        // Detect when training has ended (no new data for 10 seconds)
+        let trainingTimeout = null;
+        function resetTrainingTimeout() {
+            if (trainingTimeout) clearTimeout(trainingTimeout);
+            trainingTimeout = setTimeout(() => {
+                state.isTrainingActive = false;
+                if (state.isLiveMode) {
+                    updateHistoryUI();
+                }
+            }, CONFIG.trainingTimeoutMs);
+        }
+
+        // Live/Pause toggle
+        document.getElementById('btnLivePause').addEventListener('click', toggleLiveMode);
+
+        // Navigation buttons
+        document.getElementById('btnFirst').addEventListener('click', () => navigateToStep('first'));
+        document.getElementById('btnPrev').addEventListener('click', () => navigateToStep('prev'));
+        document.getElementById('btnNext').addEventListener('click', () => navigateToStep('next'));
+        document.getElementById('btnLast').addEventListener('click', () => navigateToStep('last'));
+
+        // Slider
+        document.getElementById('stepSlider').addEventListener('input', (e) => {
+            const index = parseInt(e.target.value);
+            if (index >= 0 && index < state.stepsList.length) {
+                navigateToStepIndex(index);
+            }
         });
 
         function addStep(stepData) {
@@ -453,6 +882,11 @@
                 }
             });
 
+            // Track training activity
+            state.lastSeenStep = stepData.step;
+
+            updateStepsList();
+
             render();
         }
 
@@ -460,19 +894,39 @@
             if (!state.runData?.steps.length) return;
 
             const steps = state.runData.steps;
-            const latest = steps[steps.length - 1];
+
+            // Determine which step to display
+            let displayStep;
+            if (state.isLiveMode) {
+                displayStep = steps[steps.length - 1];
+            } else {
+                const stepData = steps.find(s => s.step === state.selectedStep);
+                displayStep = stepData || steps[steps.length - 1];
+            }
+
+            if (!displayStep) return;
 
             // Update summary
-            document.getElementById('stepVal').textContent = latest.step;
-            document.getElementById('layerVal').textContent = latest.layers.length;
-            document.getElementById('timeVal').textContent = new Date(latest.timestamp * 1000).toLocaleTimeString();
+            document.getElementById('stepVal').textContent = displayStep.step;
+            document.getElementById('layerVal').textContent = displayStep.layers.length;
+            document.getElementById('timeVal').textContent = new Date(displayStep.timestamp * 1000).toLocaleTimeString();
 
-            // Check alerts
-            checkAlerts(latest);
+            // Update mode display if in live mode (show latest step info)
+            if (state.isLiveMode) {
+                document.getElementById('stepDisplay').textContent = `step ${displayStep.step}`;
+            }
+
+            // Check alerts (only in live mode)
+            if (state.isLiveMode) {
+                checkAlerts(displayStep);
+            } else {
+                // Hide alerts when viewing history
+                document.getElementById('alerts').classList.remove('visible');
+            }
 
             // Render layers
             const container = document.getElementById('layers');
-            container.innerHTML = latest.layers.map(layer => {
+            container.innerHTML = displayStep.layers.map(layer => {
                 const health = assessHealth(layer);
                 return `
                     <div class="layer ${health.class}">
@@ -501,9 +955,9 @@
                 `;
             }).join('');
 
-            // Draw pulse lines
-            latest.layers.forEach(layer => {
-                drawPulse(layer.layer_id);
+            // Draw pulse lines with historical context
+            displayStep.layers.forEach(layer => {
+                drawPulse(layer.layer_id, displayStep.step);
             });
         }
 
@@ -540,12 +994,28 @@
             return { class: classMap[health], act, grad, ratio: ratioClass };
         }
 
-        function drawPulse(layerId) {
+        function drawPulse(layerId, currentStep) {
             const canvas = document.getElementById(`pulse-${layerId.replace(/[^a-z0-9]/gi, '-')}`);
             if (!canvas) return;
 
-            const hist = state.history[layerId] || [];
-            if (hist.length < 2) return;
+            // Get history leading up to current step
+            const allHistory = state.history[layerId] || [];
+
+            // Find the 50 steps leading up to and including currentStep
+            let pulseHistory = [];
+            if (allHistory.length > 0) {
+                const currentStepIndex = allHistory.findIndex(h => h.step === currentStep);
+                if (currentStepIndex >= 0) {
+                    // Show 50 steps leading up to current step
+                    const startIdx = Math.max(0, currentStepIndex - CONFIG.historyLen + 1);
+                    pulseHistory = allHistory.slice(startIdx, currentStepIndex + 1);
+                } else {
+                    // Current step not in history yet, use available history
+                    pulseHistory = allHistory.slice(-CONFIG.historyLen);
+                }
+            }
+
+            if (pulseHistory.length < 2) return;
 
             const ctx = canvas.getContext('2d');
             const dpr = window.devicePixelRatio || 1;
@@ -562,7 +1032,7 @@
 
             // Find min/max for scaling
             let maxVal = 0;
-            hist.forEach(pt => {
+            pulseHistory.forEach(pt => {
                 maxVal = Math.max(maxVal, pt.actStd, pt.gradNorm);
             });
             maxVal = Math.max(maxVal, 0.001);
@@ -572,8 +1042,8 @@
             ctx.lineWidth = 1.5;
             ctx.beginPath();
 
-            hist.forEach((pt, i) => {
-                const x = (i / (hist.length - 1)) * w;
+            pulseHistory.forEach((pt, i) => {
+                const x = (i / (pulseHistory.length - 1)) * w;
                 const y = h - (pt.actStd / maxVal) * h * 0.8 - h * 0.1;
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
@@ -585,8 +1055,8 @@
             ctx.lineWidth = 1;
             ctx.beginPath();
 
-            hist.forEach((pt, i) => {
-                const x = (i / (hist.length - 1)) * w;
+            pulseHistory.forEach((pt, i) => {
+                const x = (i / (pulseHistory.length - 1)) * w;
                 const y = h - (pt.gradNorm / maxVal) * h * 0.8 - h * 0.1;
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);

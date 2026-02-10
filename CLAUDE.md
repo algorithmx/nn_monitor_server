@@ -37,15 +37,16 @@ curl http://localhost:8000/health
 ### Data Flow
 
 1. **Training scripts** POST metrics to `/api/v1/metrics/layerwise` (async, returns 202 immediately)
-2. **MetricsStore** stores data in-memory with automatic cleanup (max 10 runs, 1000 steps each)
+2. **MetricsStore** stores data in-memory with automatic cleanup
 3. **ConnectionManager** broadcasts new metrics to WebSocket subscribers
 4. **Frontend** at `/static/index.html` visualizes data via WebSocket at `/ws`
 
 ### Key Components
 
-- **`MetricsStore`** (main.py:71-147): Thread-safe in-memory storage with async locks, automatic eviction of oldest runs, step deduplication, and sorted step indexing.
-- **`ConnectionManager`** (main.py:155-185): WebSocket connection lifecycle with automatic cleanup of failed connections.
-- **Pydantic models** (main.py:18-66): Schema validation for hierarchical metrics structure.
+- **`ServerConfig`** (main.py:21-38): Environment-based configuration using pydantic-settings
+- **`MetricsStore`** (main.py:250-326): Thread-safe in-memory storage with async locks, automatic eviction of oldest runs, step deduplication, and sorted step indexing
+- **`ConnectionManager`** (main.py:334-366): WebSocket connection lifecycle with automatic cleanup of failed connections
+- **Pydantic models** (main.py:47-237): Schema validation for hierarchical metrics structure
 
 ### JSON Schema
 
@@ -56,11 +57,13 @@ The server accepts metrics via `POST /api/v1/metrics/layerwise`. See **`SCHEMA.m
 - Complete JSON examples
 - Validation rules
 
-The Pydantic models defining this schema are in **main.py:18-66** (`MetricsPayload`, `LayerStatistic`, `IntermediateFeatures`, `GradientFlow`, `ParameterStatistics`).
-
 ### API
 
 See **`API.md`** for complete REST and WebSocket endpoint documentation including request/response formats, message types, and error handling.
+
+### Configuration
+
+See **`CONFIGURATION.md`** for environment variable configuration options including storage limits, server settings, and CORS configuration.
 
 ## Development Notes
 
@@ -68,4 +71,5 @@ See **`API.md`** for complete REST and WebSocket endpoint documentation includin
 - WebSocket broadcasts silently drop failed connections (automatic cleanup)
 - Metrics are accepted synchronously but processed asynchronously to avoid blocking training
 - The server has no database persistence - all data is in-memory and lost on restart
-- Storage limits prevent unbounded memory growth: configure `max_runs` and `max_steps_per_run` in `MetricsStore.__init__`
+- Storage limits prevent unbounded memory growth: configure via `NN_MONITOR_MAX_RUNS` and `NN_MONITOR_MAX_STEPS_PER_RUN` environment variables
+- The frontend supports **Time Travel History Navigation** - see `docs/FEATURES.md` for details
