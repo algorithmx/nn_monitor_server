@@ -8,11 +8,11 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         :root {
-            --bg: #0a0a0a;
-            --surface: #111;
-            --border: #222;
-            --text: #888;
-            --text-bright: #eee;
+            --bg: #ffffff;
+            --surface: #f8f9fa;
+            --border: #e0e0e0;
+            --text: #555;
+            --text-bright: #111;
             --health-good: #4a9;
             --health-warn: #c84;
             --health-bad: #f45;
@@ -143,7 +143,7 @@
         }
 
         .btn-live:hover {
-            border-color: #333;
+            border-color: #ccc;
         }
 
         .btn-live.live-active {
@@ -189,7 +189,7 @@
         }
 
         .nav-btn:hover:not(:disabled) {
-            border-color: #333;
+            border-color: #ccc;
             color: var(--text-bright);
         }
 
@@ -303,7 +303,7 @@
             outline: none;
         }
 
-        select:hover { border-color: #333; }
+        select:hover { border-color: #ccc; }
         select:focus { border-color: var(--health-good); }
 
         .summary {
@@ -344,7 +344,7 @@
         }
 
         .layer:hover {
-            border-color: #333;
+            border-color: #ccc;
         }
 
         .layer.warning { border-color: var(--health-warn); }
@@ -359,7 +359,7 @@
         }
 
         .layer-name {
-            font-size: 13px;
+            font-size: 16px;
             font-weight: 600;
             color: var(--text-bright);
             letter-spacing: 0.01em;
@@ -367,7 +367,7 @@
         }
 
         .layer-type {
-            font-size: 10px;
+            font-size: 13px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             color: var(--text);
@@ -404,14 +404,14 @@
         }
 
         .metric-value {
-            font-size: 16px;
+            font-size: 20px;
             font-weight: 600;
             font-variant-numeric: tabular-nums;
             transition: color 0.15s;
         }
 
         .metric-label {
-            font-size: 9px;
+            font-size: 12px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             color: var(--text);
@@ -478,7 +478,7 @@
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border); }
-        ::-webkit-scrollbar-thumb:hover { background: #333; }
+        ::-webkit-scrollbar-thumb:hover { background: #ccc; }
     </style>
 </head>
 <body>
