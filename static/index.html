@@ -329,10 +329,36 @@
             background: var(--bg);
             padding: 16px;
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            align-content: start;
+        }
+
+        /* Layer grid within groups */
+        .layer-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 10px;
             align-content: start;
+        }
+
+        /* Group header */
+        .group-header {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text);
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 10px;
+        }
+
+        .group-section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
 
         .layer {
@@ -1104,6 +1130,35 @@
             render();
         }
 
+        function renderLayer(layer) {
+            const health = assessHealth(layer);
+            return `
+                <div class="layer ${health.class}">
+                    <div class="layer-header">
+                        <div>
+                            <div class="layer-name" data-tooltip="Layer identifier: ${layer.layer_id}">${layer.layer_id}</div>
+                            <div class="layer-type" data-tooltip="Layer type: ${layer.layer_type}">${layer.layer_type}</div>
+                        </div>
+                    </div>
+                    <canvas class="pulse-viz" id="pulse-${layer.layer_id.replace(/[^a-z0-9]/gi, '-')}" data-tooltip="Historical trend: Green line = activation std, Purple line = gradient norm"></canvas>
+                    <div class="metrics">
+                        <div class="metric" data-tooltip="Standard deviation of layer activations. Measures the spread/variability of activations.">
+                            <div class="metric-value ${health.act}">${layer.intermediate_features.activation_std.toFixed(4)}</div>
+                            <div class="metric-label">act std</div>
+                        </div>
+                        <div class="metric" data-tooltip="L2 norm of gradients flowing through the layer. Indicates how much weights are being updated. Low values may indicate vanishing gradients.">
+                            <div class="metric-value ${health.grad}">${layer.gradient_flow.gradient_l2_norm.toFixed(4)}</div>
+                            <div class="metric-label">grad norm</div>
+                        </div>
+                        <div class="metric" data-tooltip="Ratio of this layer's activation std to the previous layer's. Shows how signal propagation changes across layers.">
+                            <div class="metric-value ${health.ratio}">${layer.intermediate_features.cross_layer_std_ratio?.toFixed(3) ?? '—'}</div>
+                            <div class="metric-label">ratio</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         function render() {
             if (!state.runData?.steps.length) return;
 
@@ -1140,34 +1195,66 @@
 
             // Render layers
             const container = document.getElementById('layers');
-            container.innerHTML = displayStep.layers.map(layer => {
-                const health = assessHealth(layer);
-                return `
-                    <div class="layer ${health.class}">
-                        <div class="layer-header">
-                            <div>
-                                <div class="layer-name" data-tooltip="Layer identifier: ${layer.layer_id}">${layer.layer_id}</div>
-                                <div class="layer-type" data-tooltip="Layer type: ${layer.layer_type}">${layer.layer_type}</div>
+            const layerGroups = displayStep.layer_groups || null;
+
+            if (layerGroups && Object.keys(layerGroups).length > 0) {
+                // Render with grouping
+                const groupedLayers = {};
+                const ungroupedLayers = [];
+
+                // Initialize all groups
+                Object.keys(layerGroups).forEach(groupName => {
+                    groupedLayers[groupName] = [];
+                });
+
+                // Distribute layers into groups
+                displayStep.layers.forEach(layer => {
+                    let assigned = false;
+                    for (const [groupName, layerIds] of Object.entries(layerGroups)) {
+                        if (layerIds.includes(layer.layer_id)) {
+                            groupedLayers[groupName].push(layer);
+                            assigned = true;
+                            break;
+                        }
+                    }
+                    if (!assigned) {
+                        ungroupedLayers.push(layer);
+                    }
+                });
+
+                // Build HTML with groups
+                let html = '';
+                for (const [groupName, layers] of Object.entries(groupedLayers)) {
+                    if (layers.length > 0) {
+                        html += `
+                            <div class="group-section">
+                                <div class="group-header">${groupName}</div>
+                                <div class="layer-grid">
+                                    ${layers.map(layer => renderLayer(layer)).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+
+                // Add ungrouped layers if any
+                if (ungroupedLayers.length > 0) {
+                    html += `
+                        <div class="group-section">
+                            <div class="group-header">Ungrouped</div>
+                            <div class="layer-grid">
+                                ${ungroupedLayers.map(layer => renderLayer(layer)).join('')}
                             </div>
                         </div>
-                        <canvas class="pulse-viz" id="pulse-${layer.layer_id.replace(/[^a-z0-9]/gi, '-')}" data-tooltip="Historical trend: Green line = activation std, Purple line = gradient norm"></canvas>
-                        <div class="metrics">
-                            <div class="metric" data-tooltip="Standard deviation of layer activations. Measures the spread/variability of activations.">
-                                <div class="metric-value ${health.act}">${layer.intermediate_features.activation_std.toFixed(4)}</div>
-                                <div class="metric-label">act std</div>
-                            </div>
-                            <div class="metric" data-tooltip="L2 norm of gradients flowing through the layer. Indicates how much weights are being updated. Low values may indicate vanishing gradients.">
-                                <div class="metric-value ${health.grad}">${layer.gradient_flow.gradient_l2_norm.toFixed(4)}</div>
-                                <div class="metric-label">grad norm</div>
-                            </div>
-                            <div class="metric" data-tooltip="Ratio of this layer's activation std to the previous layer's. Shows how signal propagation changes across layers.">
-                                <div class="metric-value ${health.ratio}">${layer.intermediate_features.cross_layer_std_ratio?.toFixed(3) ?? '—'}</div>
-                                <div class="metric-label">ratio</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
+                    `;
+                }
+
+                container.innerHTML = html;
+            } else {
+                // Render without grouping (flat grid)
+                container.className = 'layers';
+                container.innerHTML = `<div class="layer-grid">${displayStep.layers.map(layer => renderLayer(layer)).join('')}</div>`;
+            }
 
             // Draw pulse lines with historical context
             displayStep.layers.forEach(layer => {

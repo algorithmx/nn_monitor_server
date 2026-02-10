@@ -37,15 +37,22 @@ Top-level information about the training step.
 | `timestamp` | number | Yes | Unix epoch timestamp (seconds since 1970-01-01 UTC) |
 | `global_step` | integer | Yes | Current training step number |
 | `batch_size` | integer | Yes | Batch size used for this step |
+| `layer_groups` | object | No | Grouping specification for layers; maps group names to arrays of layer_id strings |
 
 ```json
 "metadata": {
   "run_id": "experiment_2024_0210_v2",
   "timestamp": 1707589200.123,
   "global_step": 1500,
-  "batch_size": 64
+  "batch_size": 64,
+  "layer_groups": {
+    "encoder": ["encoder.linear1", "encoder.relu1", "encoder.linear2"],
+    "decoder": ["decoder.linear1", "decoder.relu1", "decoder.linear2"]
+  }
 }
 ```
+
+**Note:** If `layer_groups` is provided, the frontend will display layers organized by these groups. Layers not included in any group will be displayed in an "Ungrouped" section.
 
 ---
 
@@ -172,7 +179,10 @@ Aggregated metrics computed across multiple layers to detect depth-wise patterns
     "run_id": "experiment_2024_0210_v2",
     "timestamp": 1707589200.123,
     "global_step": 1500,
-    "batch_size": 64
+    "batch_size": 64,
+    "layer_groups": {
+      "encoder": ["encoder.linear1", "encoder.relu1", "encoder.linear2"]
+    }
   },
   "layer_statistics": [
     {
