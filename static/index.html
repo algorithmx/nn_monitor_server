@@ -484,6 +484,185 @@
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border); }
         ::-webkit-scrollbar-thumb:hover { background: #ccc; }
+
+        /* Tooltip */
+        [data-tooltip] {
+            position: relative;
+            cursor: help;
+        }
+
+        [data-tooltip]::before,
+        [data-tooltip]::after {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s, transform 0.2s;
+            z-index: 1000;
+        }
+
+        [data-tooltip]::before {
+            content: '';
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(-4px);
+            border: 5px solid transparent;
+            border-top-color: var(--text-bright);
+        }
+
+        [data-tooltip]::after {
+            content: attr(data-tooltip);
+            top: calc(100% + 9px);
+            left: 50%;
+            transform: translateX(-50%) translateY(-4px);
+            background: var(--text-bright);
+            color: var(--bg);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            max-width: 250px;
+            white-space: normal;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        [data-tooltip]:hover::before,
+        [data-tooltip]:hover::after {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Position tooltip above for elements at bottom of viewport */
+        [data-tooltip][data-tooltip-position="top"]::before {
+            top: auto;
+            bottom: 100%;
+            border-top-color: transparent;
+            border-bottom-color: var(--text-bright);
+            transform: translateX(-50%) translateY(4px);
+        }
+
+        [data-tooltip][data-tooltip-position="top"]::after {
+            top: auto;
+            bottom: calc(100% + 9px);
+            transform: translateX(-50%) translateY(4px);
+        }
+
+        [data-tooltip][data-tooltip-position="top"]:hover::before,
+        [data-tooltip][data-tooltip-position="top"]:hover::after {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-bright);
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border: none;
+            background: var(--surface);
+            color: var(--text);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+
+        .modal-close:hover {
+            background: var(--border);
+            color: var(--text-bright);
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow: auto;
+        }
+
+        .modal-canvas-container {
+            width: 100%;
+            height: 300px;
+            background: var(--surface);
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+
+        .modal-legend {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-top: 12px;
+            font-size: 13px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 24px;
+            height: 3px;
+            border-radius: 2px;
+        }
+
+        .legend-color.act { background: var(--health-good); }
+        .legend-color.grad { background: #a371f7; }
+
+        /* Pulse viz canvas clickable */
+        .pulse-viz {
+            cursor: pointer;
+        }
+
+        .pulse-viz:hover {
+            border-color: #ccc;
+        }
     </style>
 </head>
 <body>
@@ -496,22 +675,22 @@
     </header>
 
     <div class="history-controls">
-        <div class="mode-badge live" id="modeBadge">
+        <div class="mode-badge live" id="modeBadge" data-tooltip="Live mode shows real-time updates. Paused mode lets you browse historical steps.">
             <span class="badge-dot"></span>
             <span id="modeText">Live</span>
         </div>
 
-        <button class="btn-live live-active" id="btnLivePause">⏸ Pause</button>
+        <button class="btn-live live-active" id="btnLivePause" data-tooltip="Toggle between live and paused mode">⏸ Pause</button>
 
         <div class="nav-controls" id="navControls" style="opacity: 0.3; pointer-events: none;">
-            <button class="nav-btn" id="btnFirst" title="First step">⏮</button>
-            <button class="nav-btn" id="btnPrev" title="Previous step">◀</button>
-            <button class="nav-btn" id="btnNext" title="Next step">▶</button>
-            <button class="nav-btn" id="btnLast" title="Latest step">⏭</button>
+            <button class="nav-btn" id="btnFirst" data-tooltip="Jump to the first recorded step">⏮</button>
+            <button class="nav-btn" id="btnPrev" data-tooltip="Go to previous step">◀</button>
+            <button class="nav-btn" id="btnNext" data-tooltip="Go to next step">▶</button>
+            <button class="nav-btn" id="btnLast" data-tooltip="Jump to the latest step">⏭</button>
         </div>
 
         <div class="step-slider-container">
-            <input type="range" class="step-slider" id="stepSlider" min="0" max="100" value="0" disabled>
+            <input type="range" class="step-slider" id="stepSlider" min="0" max="100" value="0" disabled data-tooltip="Drag to navigate through training history">
             <span class="step-display" id="stepDisplay">—</span>
         </div>
     </div>
@@ -526,15 +705,15 @@
             </div>
 
             <div class="summary">
-                <div class="summary-item">
+                <div class="summary-item" data-tooltip="Current training step number being displayed">
                     <span>step</span>
                     <span class="value" id="stepVal">—</span>
                 </div>
-                <div class="summary-item">
+                <div class="summary-item" data-tooltip="Number of layers in the monitored model">
                     <span>layers</span>
                     <span class="value" id="layerVal">—</span>
                 </div>
-                <div class="summary-item">
+                <div class="summary-item" data-tooltip="Last time this data was updated">
                     <span>updated</span>
                     <span class="value" id="timeVal">—</span>
                 </div>
@@ -547,6 +726,31 @@
     </main>
 
     <div class="alerts" id="alerts"></div>
+
+    <!-- Modal for zoomed pulse visualization -->
+    <div class="modal-overlay" id="pulseModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">Layer Pulse Visualization</div>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-canvas-container">
+                    <canvas id="modalCanvas"></canvas>
+                </div>
+                <div class="modal-legend">
+                    <div class="legend-item">
+                        <div class="legend-color act"></div>
+                        <span>Activation Std</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color grad"></div>
+                        <span>Gradient Norm</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         const state = {
@@ -942,21 +1146,21 @@
                     <div class="layer ${health.class}">
                         <div class="layer-header">
                             <div>
-                                <div class="layer-name">${layer.layer_id}</div>
-                                <div class="layer-type">${layer.layer_type}</div>
+                                <div class="layer-name" data-tooltip="Layer identifier: ${layer.layer_id}">${layer.layer_id}</div>
+                                <div class="layer-type" data-tooltip="Layer type: ${layer.layer_type}">${layer.layer_type}</div>
                             </div>
                         </div>
-                        <canvas class="pulse-viz" id="pulse-${layer.layer_id.replace(/[^a-z0-9]/gi, '-')}"></canvas>
+                        <canvas class="pulse-viz" id="pulse-${layer.layer_id.replace(/[^a-z0-9]/gi, '-')}" data-tooltip="Historical trend: Green line = activation std, Purple line = gradient norm"></canvas>
                         <div class="metrics">
-                            <div class="metric">
+                            <div class="metric" data-tooltip="Standard deviation of layer activations. Measures the spread/variability of activations.">
                                 <div class="metric-value ${health.act}">${layer.intermediate_features.activation_std.toFixed(4)}</div>
                                 <div class="metric-label">act std</div>
                             </div>
-                            <div class="metric">
+                            <div class="metric" data-tooltip="L2 norm of gradients flowing through the layer. Indicates how much weights are being updated. Low values may indicate vanishing gradients.">
                                 <div class="metric-value ${health.grad}">${layer.gradient_flow.gradient_l2_norm.toFixed(4)}</div>
                                 <div class="metric-label">grad norm</div>
                             </div>
-                            <div class="metric">
+                            <div class="metric" data-tooltip="Ratio of this layer's activation std to the previous layer's. Shows how signal propagation changes across layers.">
                                 <div class="metric-value ${health.ratio}">${layer.intermediate_features.cross_layer_std_ratio?.toFixed(3) ?? '—'}</div>
                                 <div class="metric-label">ratio</div>
                             </div>
@@ -968,6 +1172,11 @@
             // Draw pulse lines with historical context
             displayStep.layers.forEach(layer => {
                 drawPulse(layer.layer_id, displayStep.step);
+                // Add click handler for modal
+                const canvas = document.getElementById(`pulse-${layer.layer_id.replace(/[^a-z0-9]/gi, '-')}`);
+                if (canvas) {
+                    canvas.onclick = () => openModal(layer.layer_id, layer.layer_type, displayStep.step);
+                }
             });
         }
 
@@ -1106,6 +1315,133 @@
                 alertDiv.classList.remove('visible');
             }
         }
+
+        // Modal functionality for zoomed pulse visualization
+        const modal = document.getElementById('pulseModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalCanvas = document.getElementById('modalCanvas');
+        const modalClose = document.getElementById('modalClose');
+        let currentModalLayerId = null;
+        let currentModalStep = null;
+
+        function openModal(layerId, layerType, currentStep) {
+            currentModalLayerId = layerId;
+            currentModalStep = currentStep;
+            modalTitle.textContent = `${layerId} (${layerType}) - Pulse Visualization`;
+            modal.classList.add('visible');
+            drawModalPulse();
+        }
+
+        function closeModal() {
+            modal.classList.remove('visible');
+            currentModalLayerId = null;
+            currentModalStep = null;
+        }
+
+        function drawModalPulse() {
+            if (!currentModalLayerId || !currentModalStep) return;
+
+            const allHistory = state.history[currentModalLayerId] || [];
+
+            // Find the steps leading up to and including currentStep
+            let pulseHistory = [];
+            if (allHistory.length > 0) {
+                const currentStepIndex = allHistory.findIndex(h => h.step === currentModalStep);
+                if (currentStepIndex >= 0) {
+                    // Show all history up to current step
+                    const startIdx = Math.max(0, currentStepIndex - CONFIG.historyLen + 1);
+                    pulseHistory = allHistory.slice(startIdx, currentStepIndex + 1);
+                } else {
+                    pulseHistory = allHistory.slice(-CONFIG.historyLen);
+                }
+            }
+
+            if (pulseHistory.length < 2) return;
+
+            const container = modalCanvas.parentElement;
+            const dpr = window.devicePixelRatio || 1;
+            const rect = container.getBoundingClientRect();
+
+            modalCanvas.width = rect.width * dpr;
+            modalCanvas.height = rect.height * dpr;
+            modalCanvas.style.width = rect.width + 'px';
+            modalCanvas.style.height = rect.height + 'px';
+
+            const ctx = modalCanvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+
+            const w = rect.width;
+            const h = rect.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Find min/max for scaling
+            let maxVal = 0;
+            pulseHistory.forEach(pt => {
+                maxVal = Math.max(maxVal, pt.actStd, pt.gradNorm);
+            });
+            maxVal = Math.max(maxVal, 0.001);
+
+            // Draw grid lines
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= 4; i++) {
+                const y = (i / 4) * h;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+
+            // Draw activation line
+            ctx.strokeStyle = '#4a9';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+
+            pulseHistory.forEach((pt, i) => {
+                const x = (i / (pulseHistory.length - 1)) * w;
+                const y = h - (pt.actStd / maxVal) * h * 0.8 - h * 0.1;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Draw gradient line
+            ctx.strokeStyle = '#a371f7';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            pulseHistory.forEach((pt, i) => {
+                const x = (i / (pulseHistory.length - 1)) * w;
+                const y = h - (pt.gradNorm / maxVal) * h * 0.8 - h * 0.1;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Draw step labels
+            ctx.fillStyle = '#888';
+            ctx.font = '11px SF Mono, Menlo, Monaco, monospace';
+            ctx.textAlign = 'center';
+
+            // Show first, middle, last step numbers
+            if (pulseHistory.length > 2) {
+                ctx.fillText(pulseHistory[0].step.toString(), 5, h - 5);
+                ctx.fillText(pulseHistory[Math.floor(pulseHistory.length / 2)].step.toString(), w / 2, h - 5);
+                ctx.fillText(pulseHistory[pulseHistory.length - 1].step.toString(), w - 5, h - 5);
+            }
+        }
+
+        // Modal event listeners
+        modalClose.addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modal.classList.contains('visible')) {
+                closeModal();
+            }
+        });
 
         connect();
 
