@@ -3,921 +3,634 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NN Training Monitor</title>
+    <title>nn_monitor</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         :root {
-            --bg-primary: #0d1117;
-            --bg-secondary: #161b22;
-            --bg-tertiary: #21262d;
-            --text-primary: #e6edf3;
-            --text-secondary: #8b949e;
-            --accent-blue: #58a6ff;
-            --accent-green: #3fb950;
-            --accent-orange: #f0883e;
-            --accent-red: #f85149;
-            --accent-purple: #a371f7;
-            --border: #30363d;
+            --bg: #0a0a0a;
+            --surface: #111;
+            --border: #222;
+            --text: #888;
+            --text-bright: #eee;
+            --health-good: #4a9;
+            --health-warn: #c84;
+            --health-bad: #f45;
+            --pulse: rgba(74, 153, 137, 0.1);
         }
-        
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            min-height: 100vh;
-            line-height: 1.5;
+            font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            font-size: 11px;
+            letter-spacing: -0.02em;
+            line-height: 1.4;
         }
-        
-        .header {
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border);
-            padding: 1rem 2rem;
+
+        /* Header - ultra minimal */
+        header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
         }
-        
-        .header h1 {
-            font-size: 1.25rem;
+
+        .brand {
+            font-size: 10px;
             font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-bright);
         }
-        
+
         .status {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            font-size: 0.875rem;
-            color: var(--text-secondary);
+            gap: 6px;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
-        
+
         .status-dot {
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
             border-radius: 50%;
-            background: var(--accent-green);
+            background: var(--health-good);
             animation: pulse 2s infinite;
         }
-        
-        .status-dot.disconnected {
-            background: var(--accent-red);
-            animation: none;
-        }
-        
+
+        .status-dot.disconnected { background: var(--health-bad); animation: none; }
+
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.9); }
         }
-        
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-            padding: 1.5rem;
-        }
-        
-        .controls {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        
-        select, button {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            color: var(--text-primary);
-            padding: 0.5rem 1rem;
-            border-radius: 6px;
-            font-size: 0.875rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        select:hover, button:hover {
-            border-color: var(--accent-blue);
-        }
-        
-        button {
-            background: var(--accent-blue);
-            border-color: var(--accent-blue);
-            font-weight: 500;
-        }
-        
-        button:hover {
-            opacity: 0.9;
-        }
-        
-        .grid {
+
+        /* Main layout */
+        main {
+            flex: 1;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 1rem;
-        }
-        
-        .card {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        
-        .card-header {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid var(--border);
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.025em;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .card-body {
-            padding: 1rem;
-            min-height: 250px;
-        }
-        
-        .chart-container {
-            position: relative;
-            height: 220px;
-        }
-        
-        canvas {
-            width: 100%;
-            height: 100%;
-        }
-        
-        .legend {
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-            margin-top: 0.5rem;
-            font-size: 0.75rem;
-        }
-        
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 0.25rem;
-            color: var(--text-secondary);
-        }
-        
-        .legend-color {
-            width: 12px;
-            height: 12px;
-            border-radius: 2px;
-        }
-        
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 0.75rem;
-        }
-        
-        .metric {
-            background: var(--bg-tertiary);
-            padding: 0.75rem;
-            border-radius: 6px;
-            text-align: center;
-        }
-        
-        .metric-value {
-            font-size: 1.5rem;
-            font-weight: 600;
-            font-family: 'SF Mono', monospace;
-        }
-        
-        .metric-label {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            margin-top: 0.25rem;
-        }
-        
-        .layer-list {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        
-        .layer-item {
-            padding: 0.5rem 0.75rem;
-            border-bottom: 1px solid var(--border);
-            font-size: 0.8125rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .layer-item:last-child {
-            border-bottom: none;
-        }
-        
-        .layer-name {
-            font-family: 'SF Mono', monospace;
-            color: var(--accent-blue);
-        }
-        
-        .layer-type {
-            color: var(--text-secondary);
-            font-size: 0.75rem;
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 3rem;
-            color: var(--text-secondary);
-        }
-        
-        .empty-state svg {
-            width: 48px;
-            height: 48px;
-            margin-bottom: 1rem;
-            opacity: 0.5;
-        }
-        
-        .alert {
-            padding: 0.75rem 1rem;
-            border-radius: 6px;
-            font-size: 0.875rem;
-            margin-bottom: 1rem;
-        }
-        
-        .alert-warning {
-            background: rgba(240, 136, 62, 0.1);
-            border: 1px solid var(--accent-orange);
-            color: var(--accent-orange);
-        }
-        
-        .spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid var(--border);
-            border-top-color: var(--accent-blue);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        /* Scrollbar styling */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: var(--bg-primary);
-        }
-        
-        ::-webkit-scrollbar-thumb {
+            grid-template-columns: 200px 1fr;
+            gap: 1px;
             background: var(--border);
-            border-radius: 4px;
         }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--text-secondary);
+
+        /* Sidebar - run selector and summary */
+        aside {
+            background: var(--bg);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
         }
+
+        .control {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .control label {
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text);
+        }
+
+        select {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text-bright);
+            padding: 6px 8px;
+            font-family: inherit;
+            font-size: 10px;
+            border-radius: 0;
+            cursor: pointer;
+            outline: none;
+        }
+
+        select:hover { border-color: #333; }
+        select:focus { border-color: var(--health-good); }
+
+        .summary {
+            margin-top: auto;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 10px;
+        }
+
+        .summary-item .value {
+            color: var(--text-bright);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Layer grid */
+        .layers {
+            background: var(--bg);
+            padding: 12px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 8px;
+            align-content: start;
+        }
+
+        .layer {
+            border: 1px solid var(--border);
+            padding: 10px;
+            position: relative;
+            transition: border-color 0.15s;
+        }
+
+        .layer:hover {
+            border-color: #333;
+        }
+
+        .layer.warning { border-color: var(--health-warn); }
+        .layer.critical { border-color: var(--health-bad); }
+
+        .layer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .layer-name {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-bright);
+            letter-spacing: 0.02em;
+        }
+
+        .layer-type {
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text);
+        }
+
+        /* Pulse visualization - the living heartbeat */
+        .pulse-viz {
+            height: 24px;
+            background: var(--surface);
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .pulse-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+        }
+
+        /* Metrics row */
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 13px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            transition: color 0.15s;
+        }
+
+        .metric-label {
+            font-size: 7px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text);
+            margin-top: 2px;
+        }
+
+        /* Health colors */
+        .good { color: var(--health-good); }
+        .warn { color: var(--health-warn); }
+        .bad { color: var(--health-bad); }
+
+        /* Empty state */
+        .empty {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text);
+            font-size: 11px;
+        }
+
+        .empty::before {
+            content: '◷';
+            font-size: 32px;
+            margin-bottom: 12px;
+            opacity: 0.3;
+            animation: pulse 2s infinite;
+        }
+
+        /* Alerts strip */
+        .alerts {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            padding: 8px 12px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            font-size: 10px;
+            transform: translateY(100%);
+            transition: transform 0.2s;
+            z-index: 10;
+        }
+
+        .alerts.visible {
+            transform: translateY(0);
+        }
+
+        .alert {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .alert-icon { color: var(--health-warn); }
+        .alert.critical .alert-icon { color: var(--health-bad); }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); }
+        ::-webkit-scrollbar-thumb:hover { background: #333; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-            NN Training Monitor
-        </h1>
+    <header>
+        <div class="brand">nn_monitor</div>
         <div class="status">
             <span class="status-dot" id="statusDot"></span>
-            <span id="statusText">Connecting...</span>
+            <span id="statusText">connecting</span>
         </div>
-    </div>
-    
-    <div class="container">
-        <div class="controls">
-            <select id="runSelect">
-                <option value="">Select a run...</option>
-            </select>
-            <button onclick="clearData()">Clear Data</button>
-            <span id="stepInfo" style="color: var(--text-secondary); font-size: 0.875rem;"></span>
-        </div>
-        
-        <div id="alerts"></div>
-        
-        <div id="dashboard" style="display: none;">
-            <div class="grid">
-                <!-- Activation STD Chart -->
-                <div class="card">
-                    <div class="card-header">
-                        Activation Std by Layer
-                        <span style="font-size: 0.75rem; font-weight: normal;">Detect vanishing/exploding signals</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="activationChart"></canvas>
-                        </div>
-                        <div class="legend" id="activationLegend"></div>
-                    </div>
+    </header>
+
+    <main>
+        <aside>
+            <div class="control">
+                <label>Run</label>
+                <select id="runSelect">
+                    <option value="">select run...</option>
+                </select>
+            </div>
+
+            <div class="summary">
+                <div class="summary-item">
+                    <span>step</span>
+                    <span class="value" id="stepVal">—</span>
                 </div>
-                
-                <!-- Gradient Norm Chart -->
-                <div class="card">
-                    <div class="card-header">
-                        Gradient L2 Norm by Layer
-                        <span style="font-size: 0.75rem; font-weight: normal;">Monitor gradient flow</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="gradientChart"></canvas>
-                        </div>
-                        <div class="legend" id="gradientLegend"></div>
-                    </div>
+                <div class="summary-item">
+                    <span>layers</span>
+                    <span class="value" id="layerVal">—</span>
                 </div>
-                
-                <!-- Weight Statistics -->
-                <div class="card">
-                    <div class="card-header">
-                        Weight Statistics
-                        <span style="font-size: 0.75rem; font-weight: normal;">Per-layer weight metrics</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="chart-container">
-                            <canvas id="weightChart"></canvas>
-                        </div>
-                        <div class="legend" id="weightLegend"></div>
-                    </div>
-                </div>
-                
-                <!-- Cross-Layer Analysis -->
-                <div class="card">
-                    <div class="card-header">
-                        Cross-Layer Analysis
-                        <span style="font-size: 0.75rem; font-weight: normal;">Signal propagation health</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="metrics-grid" id="crossLayerMetrics"></div>
-                    </div>
-                </div>
-                
-                <!-- Layer Overview -->
-                <div class="card" style="grid-column: 1 / -1;">
-                    <div class="card-header">
-                        Layer Overview
-                        <span style="font-size: 0.75rem; font-weight: normal;">All monitored layers</span>
-                    </div>
-                    <div class="card-body" style="padding: 0;">
-                        <div class="layer-list" id="layerList"></div>
-                    </div>
+                <div class="summary-item">
+                    <span>updated</span>
+                    <span class="value" id="timeVal">—</span>
                 </div>
             </div>
+        </aside>
+
+        <div class="layers" id="layers">
+            <div class="empty">awaiting data...</div>
         </div>
-        
-        <div class="empty-state" id="emptyState">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-            </svg>
-            <p>Waiting for training data...</p>
-            <p style="font-size: 0.875rem; margin-top: 0.5rem;">Connect your monitor and start training to see live metrics</p>
-        </div>
-    </div>
+    </main>
+
+    <div class="alerts" id="alerts"></div>
 
     <script>
-        // ==================== State Management ====================
         const state = {
             ws: null,
             runs: {},
             currentRun: null,
             runData: null,
-            charts: {},
-            colors: ['#58a6ff', '#3fb950', '#f0883e', '#a371f7', '#f85149', '#79c0ff', '#56d364', '#ffa657']
+            history: {} // { layerId: [{step, value}, ...] }
         };
 
-        // ==================== WebSocket Connection ====================
-        function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
-            
-            state.ws = new WebSocket(wsUrl);
-            
-            state.ws.onopen = () => {
-                updateStatus(true, 'Connected');
-            };
-            
-            state.ws.onmessage = (event) => {
-                const message = JSON.parse(event.data);
-                handleMessage(message);
-            };
-            
-            state.ws.onclose = () => {
-                updateStatus(false, 'Disconnected - Reconnecting...');
-                setTimeout(connectWebSocket, 3000);
-            };
-            
-            state.ws.onerror = () => {
-                updateStatus(false, 'Error');
-            };
+        const CONFIG = {
+            historyLen: 50,
+            thresholds: {
+                gradNorm: { low: 0.001, high: 10 },
+                gradMax: { high: 10 },
+                actRatio: { low: 0.5, high: 2 }
+            }
+        };
+
+        // WebSocket
+        function connect() {
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            state.ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+            state.ws.onopen = () => setStatus(true, 'live');
+            state.ws.onclose = () => setStatus(false, 'reconnecting');
+            state.ws.onerror = () => setStatus(false, 'error');
+            state.ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
         }
 
-        function updateStatus(connected, text) {
-            const dot = document.getElementById('statusDot');
-            const statusText = document.getElementById('statusText');
-            
-            dot.classList.toggle('disconnected', !connected);
-            statusText.textContent = text;
+        function setStatus(connected, text) {
+            document.getElementById('statusDot').classList.toggle('disconnected', !connected);
+            document.getElementById('statusText').textContent = text;
         }
 
-        function handleMessage(message) {
-            switch (message.type) {
+        function handleMessage(msg) {
+            switch(msg.type) {
                 case 'initial_runs':
-                    state.runs = message.data;
-                    updateRunSelect();
+                    state.runs = msg.data;
+                    updateSelect();
                     break;
-                    
+
                 case 'new_metrics':
-                    if (!state.runs[message.run_id]) {
-                        state.runs[message.run_id] = {
+                    if (!state.runs[msg.run_id]) {
+                        state.runs[msg.run_id] = {
                             created_at: new Date().toISOString(),
                             last_update: new Date().toISOString(),
                             step_count: 0
                         };
-                        updateRunSelect();
+                        updateSelect();
                     }
-                    
-                    // Auto-select first run
-                    if (!state.currentRun && Object.keys(state.runs).length > 0) {
-                        selectRun(message.run_id);
+
+                    if (!state.currentRun && Object.keys(state.runs).length) {
+                        selectRun(msg.run_id);
                     }
-                    
-                    // Update if this is the current run
-                    if (message.run_id === state.currentRun) {
-                        appendStepData(message.data);
+
+                    if (msg.run_id === state.currentRun) {
+                        addStep(msg.data);
                     }
-                    
-                    state.runs[message.run_id].last_update = new Date().toISOString();
-                    state.runs[message.run_id].latest_step = message.data.step;
                     break;
-                    
+
                 case 'run_history':
-                    state.runData = message.data;
-                    renderDashboard();
+                    state.runData = msg.data;
+                    msg.data.steps.forEach(addStep);
                     break;
             }
         }
 
-        // ==================== UI Updates ====================
-        function updateRunSelect() {
-            const select = document.getElementById('runSelect');
-            const currentValue = select.value;
-            
-            select.innerHTML = '<option value="">Select a run...</option>';
-            
-            Object.entries(state.runs).forEach(([runId, info]) => {
-                const option = document.createElement('option');
-                option.value = runId;
-                option.textContent = `${runId} (${info.step_count || 0} steps)`;
-                select.appendChild(option);
+        function updateSelect() {
+            const sel = document.getElementById('runSelect');
+            const cur = sel.value;
+            sel.innerHTML = '<option value="">select run...</option>';
+            Object.entries(state.runs).forEach(([id, info]) => {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = `${id} (${info.step_count || 0} steps)`;
+                sel.appendChild(opt);
             });
-            
-            if (currentValue && state.runs[currentValue]) {
-                select.value = currentValue;
-            }
+            if (cur && state.runs[cur]) sel.value = cur;
         }
 
-        function selectRun(runId) {
-            state.currentRun = runId;
-            document.getElementById('runSelect').value = runId;
-            
-            // Request run history
-            if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-                state.ws.send(JSON.stringify({
-                    action: 'subscribe_run',
-                    run_id: runId
-                }));
+        function selectRun(id) {
+            state.currentRun = id;
+            document.getElementById('runSelect').value = id;
+            state.history = {};
+
+            if (state.ws?.readyState === WebSocket.OPEN) {
+                state.ws.send(JSON.stringify({ action: 'subscribe_run', run_id: id }));
             }
         }
 
         document.getElementById('runSelect').addEventListener('change', (e) => {
-            if (e.target.value) {
-                selectRun(e.target.value);
-            }
+            if (e.target.value) selectRun(e.target.value);
         });
 
-        function appendStepData(stepData) {
+        function addStep(stepData) {
             if (!state.runData) {
                 state.runData = { steps: [] };
             }
-            
-            // Avoid duplicates
-            const existingIdx = state.runData.steps.findIndex(s => s.step === stepData.step);
-            if (existingIdx >= 0) {
-                state.runData.steps[existingIdx] = stepData;
+
+            const idx = state.runData.steps.findIndex(s => s.step === stepData.step);
+            if (idx >= 0) {
+                state.runData.steps[idx] = stepData;
             } else {
                 state.runData.steps.push(stepData);
                 state.runData.steps.sort((a, b) => a.step - b.step);
             }
-            
-            // Keep last 100 steps for performance
-            if (state.runData.steps.length > 100) {
-                state.runData.steps = state.runData.steps.slice(-100);
-            }
-            
-            renderDashboard();
-        }
 
-        function clearData() {
-            state.runData = null;
-            state.currentRun = null;
-            document.getElementById('runSelect').value = '';
-            document.getElementById('dashboard').style.display = 'none';
-            document.getElementById('emptyState').style.display = 'block';
-        }
-
-        // ==================== Chart Rendering ====================
-        function renderDashboard() {
-            if (!state.runData || !state.runData.steps.length) return;
-            
-            document.getElementById('emptyState').style.display = 'none';
-            document.getElementById('dashboard').style.display = 'block';
-            
-            const latestStep = state.runData.steps[state.runData.steps.length - 1];
-            document.getElementById('stepInfo').textContent = 
-                `Step: ${latestStep.step} | Layers: ${latestStep.layers.length} | ` +
-                `Updated: ${new Date(latestStep.timestamp * 1000).toLocaleTimeString()}`;
-            
-            // Check for issues
-            checkAlerts(latestStep);
-            
-            // Render charts
-            renderActivationChart();
-            renderGradientChart();
-            renderWeightChart();
-            renderCrossLayerMetrics();
-            renderLayerList();
-        }
-
-        function checkAlerts(step) {
-            const alertsDiv = document.getElementById('alerts');
-            const alerts = [];
-            
-            // Check for vanishing gradients
-            step.layers.forEach(layer => {
-                const gradNorm = layer.gradient_flow.gradient_l2_norm;
-                if (gradNorm < 0.001) {
-                    alerts.push(`Vanishing gradient detected in ${layer.layer_id} (norm: ${gradNorm.toExponential(2)})`);
+            // Update per-layer history for pulse viz
+            stepData.layers.forEach(layer => {
+                if (!state.history[layer.layer_id]) {
+                    state.history[layer.layer_id] = [];
+                }
+                state.history[layer.layer_id].push({
+                    step: stepData.step,
+                    actStd: layer.intermediate_features.activation_std,
+                    gradNorm: layer.gradient_flow.gradient_l2_norm
+                });
+                if (state.history[layer.layer_id].length > CONFIG.historyLen) {
+                    state.history[layer.layer_id].shift();
                 }
             });
-            
-            // Check for exploding gradients
-            step.layers.forEach(layer => {
-                const gradMax = layer.gradient_flow.gradient_max_abs;
-                if (gradMax > 10) {
-                    alerts.push(`Exploding gradient detected in ${layer.layer_id} (max: ${gradMax.toFixed(2)})`);
-                }
-            });
-            
-            // Check cross-layer ratios
-            step.layers.forEach(layer => {
-                const ratio = layer.intermediate_features.cross_layer_std_ratio;
-                if (ratio !== null && ratio < 0.1) {
-                    alerts.push(`Severe activation drop at ${layer.layer_id} (ratio: ${ratio.toFixed(4)})`);
-                }
-            });
-            
-            alertsDiv.innerHTML = alerts.map(alert => 
-                `<div class="alert alert-warning">⚠️ ${alert}</div>`
-            ).join('');
+
+            render();
         }
 
-        function renderActivationChart() {
-            const canvas = document.getElementById('activationChart');
-            const ctx = canvas.getContext('2d');
-            const steps = state.runData.steps;
-            
-            // Set canvas size
-            canvas.width = canvas.offsetWidth * 2;
-            canvas.height = canvas.offsetHeight * 2;
-            ctx.scale(2, 2);
-            
-            const width = canvas.offsetWidth;
-            const height = canvas.offsetHeight;
-            const padding = { top: 20, right: 20, bottom: 40, left: 50 };
-            
-            ctx.clearRect(0, 0, width, height);
-            
-            // Get all layer names
-            const layerNames = steps[0].layers.map(l => l.layer_id);
-            const maxStep = Math.max(...steps.map(s => s.step));
-            const minStep = Math.min(...steps.map(s => s.step));
-            
-            // Draw axes
-            ctx.strokeStyle = '#30363d';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(padding.left, padding.top);
-            ctx.lineTo(padding.left, height - padding.bottom);
-            ctx.lineTo(width - padding.right, height - padding.bottom);
-            ctx.stroke();
-            
-            // Draw grid lines
-            ctx.strokeStyle = '#21262d';
-            ctx.setLineDash([2, 2]);
-            for (let i = 0; i <= 5; i++) {
-                const y = padding.top + (height - padding.top - padding.bottom) * i / 5;
-                ctx.beginPath();
-                ctx.moveTo(padding.left, y);
-                ctx.lineTo(width - padding.right, y);
-                ctx.stroke();
-            }
-            ctx.setLineDash([]);
-            
-            // Draw lines for each layer
-            const legendItems = [];
-            layerNames.forEach((layerName, idx) => {
-                const color = state.colors[idx % state.colors.length];
-                legendItems.push({ name: layerName, color });
-                
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                
-                steps.forEach((step, stepIdx) => {
-                    const layer = step.layers.find(l => l.layer_id === layerName);
-                    if (!layer) return;
-                    
-                    const x = padding.left + (step.step - minStep) / (maxStep - minStep || 1) * 
-                             (width - padding.left - padding.right);
-                    const y = height - padding.bottom - layer.intermediate_features.activation_std * 
-                             (height - padding.top - padding.bottom) / 2;
-                    
-                    if (stepIdx === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                });
-                
-                ctx.stroke();
-            });
-            
-            // Update legend
-            document.getElementById('activationLegend').innerHTML = legendItems.map(item => 
-                `<div class="legend-item"><div class="legend-color" style="background: ${item.color}"></div>${item.name}</div>`
-            ).join('');
-        }
+        function render() {
+            if (!state.runData?.steps.length) return;
 
-        function renderGradientChart() {
-            const canvas = document.getElementById('gradientChart');
-            const ctx = canvas.getContext('2d');
-            const steps = state.runData.steps;
-            
-            canvas.width = canvas.offsetWidth * 2;
-            canvas.height = canvas.offsetHeight * 2;
-            ctx.scale(2, 2);
-            
-            const width = canvas.offsetWidth;
-            const height = canvas.offsetHeight;
-            const padding = { top: 20, right: 20, bottom: 40, left: 50 };
-            
-            ctx.clearRect(0, 0, width, height);
-            
-            const layerNames = steps[0].layers.map(l => l.layer_id);
-            const maxStep = Math.max(...steps.map(s => s.step));
-            const minStep = Math.min(...steps.map(s => s.step));
-            
-            // Find max gradient norm for scaling
-            let maxGradNorm = 0;
-            steps.forEach(step => {
-                step.layers.forEach(layer => {
-                    maxGradNorm = Math.max(maxGradNorm, layer.gradient_flow.gradient_l2_norm);
-                });
-            });
-            maxGradNorm = Math.max(maxGradNorm, 0.001);
-            
-            // Draw axes
-            ctx.strokeStyle = '#30363d';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(padding.left, padding.top);
-            ctx.lineTo(padding.left, height - padding.bottom);
-            ctx.lineTo(width - padding.right, height - padding.bottom);
-            ctx.stroke();
-            
-            // Draw grid lines
-            ctx.strokeStyle = '#21262d';
-            ctx.setLineDash([2, 2]);
-            for (let i = 0; i <= 5; i++) {
-                const y = padding.top + (height - padding.top - padding.bottom) * i / 5;
-                ctx.beginPath();
-                ctx.moveTo(padding.left, y);
-                ctx.lineTo(width - padding.right, y);
-                ctx.stroke();
-            }
-            ctx.setLineDash([]);
-            
-            // Draw lines
-            const legendItems = [];
-            layerNames.forEach((layerName, idx) => {
-                const color = state.colors[idx % state.colors.length];
-                legendItems.push({ name: layerName, color });
-                
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                
-                steps.forEach((step, stepIdx) => {
-                    const layer = step.layers.find(l => l.layer_id === layerName);
-                    if (!layer) return;
-                    
-                    const x = padding.left + (step.step - minStep) / (maxStep - minStep || 1) * 
-                             (width - padding.left - padding.right);
-                    const y = height - padding.bottom - 
-                             (layer.gradient_flow.gradient_l2_norm / maxGradNorm) * 
-                             (height - padding.top - padding.bottom);
-                    
-                    if (stepIdx === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                });
-                
-                ctx.stroke();
-            });
-            
-            document.getElementById('gradientLegend').innerHTML = legendItems.map(item => 
-                `<div class="legend-item"><div class="legend-color" style="background: ${item.color}"></div>${item.name}</div>`
-            ).join('');
-        }
-
-        function renderWeightChart() {
-            const canvas = document.getElementById('weightChart');
-            const ctx = canvas.getContext('2d');
-            const steps = state.runData.steps;
-            
-            canvas.width = canvas.offsetWidth * 2;
-            canvas.height = canvas.offsetHeight * 2;
-            ctx.scale(2, 2);
-            
-            const width = canvas.offsetWidth;
-            const height = canvas.offsetHeight;
-            const padding = { top: 20, right: 20, bottom: 40, left: 50 };
-            
-            ctx.clearRect(0, 0, width, height);
-            
-            const layerNames = steps[0].layers.map(l => l.layer_id);
-            const maxStep = Math.max(...steps.map(s => s.step));
-            const minStep = Math.min(...steps.map(s => s.step));
-            
-            // Find max weight std for scaling
-            let maxWeightStd = 0;
-            steps.forEach(step => {
-                step.layers.forEach(layer => {
-                    maxWeightStd = Math.max(maxWeightStd, layer.parameter_statistics.weight.std);
-                });
-            });
-            maxWeightStd = Math.max(maxWeightStd, 0.001);
-            
-            // Draw axes
-            ctx.strokeStyle = '#30363d';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(padding.left, padding.top);
-            ctx.lineTo(padding.left, height - padding.bottom);
-            ctx.lineTo(width - padding.right, height - padding.bottom);
-            ctx.stroke();
-            
-            // Draw grid lines
-            ctx.strokeStyle = '#21262d';
-            ctx.setLineDash([2, 2]);
-            for (let i = 0; i <= 5; i++) {
-                const y = padding.top + (height - padding.top - padding.bottom) * i / 5;
-                ctx.beginPath();
-                ctx.moveTo(padding.left, y);
-                ctx.lineTo(width - padding.right, y);
-                ctx.stroke();
-            }
-            ctx.setLineDash([]);
-            
-            // Draw lines
-            const legendItems = [];
-            layerNames.forEach((layerName, idx) => {
-                const color = state.colors[idx % state.colors.length];
-                legendItems.push({ name: layerName, color });
-                
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                
-                steps.forEach((step, stepIdx) => {
-                    const layer = step.layers.find(l => l.layer_id === layerName);
-                    if (!layer) return;
-                    
-                    const x = padding.left + (step.step - minStep) / (maxStep - minStep || 1) * 
-                             (width - padding.left - padding.right);
-                    const y = height - padding.bottom - 
-                             (layer.parameter_statistics.weight.std / maxWeightStd) * 
-                             (height - padding.top - padding.bottom);
-                    
-                    if (stepIdx === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                });
-                
-                ctx.stroke();
-            });
-            
-            document.getElementById('weightLegend').innerHTML = legendItems.map(item => 
-                `<div class="legend-item"><div class="legend-color" style="background: ${item.color}"></div>${item.name}</div>`
-            ).join('');
-        }
-
-        function renderCrossLayerMetrics() {
             const steps = state.runData.steps;
             const latest = steps[steps.length - 1];
-            const crossLayer = latest.cross_layer;
-            
-            const container = document.getElementById('crossLayerMetrics');
-            
-            // Calculate average ratios
-            const ratios = Object.values(crossLayer.gradient_norm_ratio);
-            const avgRatio = ratios.length > 0 ? 
-                ratios.reduce((a, b) => a + b, 0) / ratios.length : 0;
-            
-            // Count problematic layers
-            let vanishingCount = 0;
-            let explodingCount = 0;
-            latest.layers.forEach(layer => {
-                const ratio = layer.intermediate_features.cross_layer_std_ratio;
-                if (ratio !== null) {
-                    if (ratio < 0.5) vanishingCount++;
-                    if (ratio > 2) explodingCount++;
-                }
-            });
-            
-            container.innerHTML = `
-                <div class="metric">
-                    <div class="metric-value" style="color: var(--accent-blue)">${crossLayer.feature_std_gradient.toFixed(4)}</div>
-                    <div class="metric-label">Feature Std Gradient</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-value" style="color: var(--accent-green)">${avgRatio.toFixed(3)}</div>
-                    <div class="metric-label">Avg Grad Norm Ratio</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-value" style="color: ${vanishingCount > 0 ? 'var(--accent-red)' : 'var(--accent-green)'}">${vanishingCount}</div>
-                    <div class="metric-label">Vanishing Layers</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-value" style="color: ${explodingCount > 0 ? 'var(--accent-orange)' : 'var(--accent-green)'}">${explodingCount}</div>
-                    <div class="metric-label">Exploding Layers</div>
-                </div>
-            `;
-        }
 
-        function renderLayerList() {
-            const steps = state.runData.steps;
-            const latest = steps[steps.length - 1];
-            
-            const container = document.getElementById('layerList');
+            // Update summary
+            document.getElementById('stepVal').textContent = latest.step;
+            document.getElementById('layerVal').textContent = latest.layers.length;
+            document.getElementById('timeVal').textContent = new Date(latest.timestamp * 1000).toLocaleTimeString();
+
+            // Check alerts
+            checkAlerts(latest);
+
+            // Render layers
+            const container = document.getElementById('layers');
             container.innerHTML = latest.layers.map(layer => {
-                const ratio = layer.intermediate_features.cross_layer_std_ratio;
-                let ratioClass = '';
-                if (ratio !== null) {
-                    if (ratio < 0.5) ratioClass = 'style="color: var(--accent-red)"';
-                    else if (ratio > 2) ratioClass = 'style="color: var(--accent-orange)"';
-                }
-                
+                const health = assessHealth(layer);
                 return `
-                    <div class="layer-item">
-                        <div>
-                            <span class="layer-name">${layer.layer_id}</span>
-                            <span class="layer-type">${layer.layer_type}</span>
+                    <div class="layer ${health.class}">
+                        <div class="layer-header">
+                            <div>
+                                <div class="layer-name">${layer.layer_id}</div>
+                                <div class="layer-type">${layer.layer_type}</div>
+                            </div>
                         </div>
-                        <div style="font-family: monospace; font-size: 0.75rem; color: var(--text-secondary);">
-                            act_std: ${layer.intermediate_features.activation_std.toFixed(4)} | 
-                            grad_norm: ${layer.gradient_flow.gradient_l2_norm.toFixed(4)} |
-                            <span ${ratioClass}>ratio: ${ratio !== null ? ratio.toFixed(4) : 'N/A'}</span>
+                        <canvas class="pulse-viz" id="pulse-${layer.layer_id.replace(/[^a-z0-9]/gi, '-')}"></canvas>
+                        <div class="metrics">
+                            <div class="metric">
+                                <div class="metric-value ${health.act}">${layer.intermediate_features.activation_std.toFixed(4)}</div>
+                                <div class="metric-label">act std</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value ${health.grad}">${layer.gradient_flow.gradient_l2_norm.toFixed(4)}</div>
+                                <div class="metric-label">grad norm</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-value ${health.ratio}">${layer.intermediate_features.cross_layer_std_ratio?.toFixed(3) ?? '—'}</div>
+                                <div class="metric-label">ratio</div>
+                            </div>
                         </div>
                     </div>
                 `;
             }).join('');
+
+            // Draw pulse lines
+            latest.layers.forEach(layer => {
+                drawPulse(layer.layer_id);
+            });
         }
 
-        // ==================== Initialize ====================
-        connectWebSocket();
-        
-        // Handle window resize
-        window.addEventListener('resize', () => {
-            if (state.runData) {
-                renderDashboard();
+        function assessHealth(layer) {
+            const gradNorm = layer.gradient_flow.gradient_l2_norm;
+            const gradMax = layer.gradient_flow.gradient_max_abs;
+            const ratio = layer.intermediate_features.cross_layer_std_ratio;
+
+            let health = 'good';
+            let act = 'good';
+            let grad = 'good';
+            let ratioClass = 'good';
+
+            if (gradNorm < CONFIG.thresholds.gradNorm.low) {
+                health = 'critical';
+                grad = 'bad';
             }
+            if (gradMax > CONFIG.thresholds.gradMax.high) {
+                health = 'critical';
+                grad = 'bad';
+            }
+            if (ratio !== null) {
+                if (ratio < CONFIG.thresholds.actRatio.low) {
+                    health = health === 'good' ? 'warning' : health;
+                    ratioClass = 'bad';
+                }
+                if (ratio > CONFIG.thresholds.actRatio.high) {
+                    health = health === 'good' ? 'warning' : health;
+                    ratioClass = 'warn';
+                }
+            }
+
+            const classMap = { good: '', warning: 'warning', critical: 'critical' };
+            return { class: classMap[health], act, grad, ratio: ratioClass };
+        }
+
+        function drawPulse(layerId) {
+            const canvas = document.getElementById(`pulse-${layerId.replace(/[^a-z0-9]/gi, '-')}`);
+            if (!canvas) return;
+
+            const hist = state.history[layerId] || [];
+            if (hist.length < 2) return;
+
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            const w = rect.width;
+            const h = rect.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Find min/max for scaling
+            let maxVal = 0;
+            hist.forEach(pt => {
+                maxVal = Math.max(maxVal, pt.actStd, pt.gradNorm);
+            });
+            maxVal = Math.max(maxVal, 0.001);
+
+            // Draw activation line
+            ctx.strokeStyle = '#4a9';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+
+            hist.forEach((pt, i) => {
+                const x = (i / (hist.length - 1)) * w;
+                const y = h - (pt.actStd / maxVal) * h * 0.8 - h * 0.1;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Draw gradient line
+            ctx.strokeStyle = '#a371f7';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+
+            hist.forEach((pt, i) => {
+                const x = (i / (hist.length - 1)) * w;
+                const y = h - (pt.gradNorm / maxVal) * h * 0.8 - h * 0.1;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+        }
+
+        function checkAlerts(step) {
+            const alerts = [];
+
+            step.layers.forEach(layer => {
+                const gradNorm = layer.gradient_flow.gradient_l2_norm;
+                const gradMax = layer.gradient_flow.gradient_max_abs;
+                const ratio = layer.intermediate_features.cross_layer_std_ratio;
+
+                if (gradNorm < 0.001) {
+                    alerts.push({ type: 'critical', msg: `vanishing: ${layer.layer_id}` });
+                }
+                if (gradMax > 10) {
+                    alerts.push({ type: 'critical', msg: `exploding: ${layer.layer_id}` });
+                }
+                if (ratio !== null && ratio < 0.1) {
+                    alerts.push({ type: 'warning', msg: `severe drop: ${layer.layer_id}` });
+                }
+            });
+
+            const alertDiv = document.getElementById('alerts');
+            if (alerts.length) {
+                alertDiv.innerHTML = alerts.map(a => `
+                    <div class="alert ${a.type}">
+                        <span class="alert-icon">${a.type === 'critical' ? '⚠' : '◷'}</span>
+                        <span>${a.msg}</span>
+                    </div>
+                `).join('');
+                alertDiv.classList.add('visible');
+            } else {
+                alertDiv.classList.remove('visible');
+            }
+        }
+
+        connect();
+
+        window.addEventListener('resize', () => {
+            if (state.runData) render();
         });
     </script>
 </body>
