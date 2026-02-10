@@ -6,64 +6,117 @@ FastAPI backend with WebSocket support for real-time visualization
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import asyncio
 import json
+import math
 import os
 
-app = FastAPI(title="NN Training Monitor", version="1.0.0")
+app = FastAPI(title="NN Training Monitor", version="1.0.0", max_request_size=2_000_000)
 
 # ==================== Data Models ====================
 
 class Metadata(BaseModel):
-    run_id: str
-    timestamp: float
-    global_step: int
-    batch_size: int
+    run_id: str = Field(..., min_length=1, pattern=r"^[a-zA-Z0-9_\.-]+$", description="Unique identifier for the training run")
+    timestamp: float = Field(..., gt=0, description="Unix epoch timestamp")
+    global_step: int = Field(..., ge=0, description="Training step number")
+    batch_size: int = Field(..., gt=0, description="Batch size")
 
 class IntermediateFeatures(BaseModel):
-    activation_std: float
-    activation_mean: float
-    activation_shape: List[int]
-    cross_layer_std_ratio: Optional[float] = None
+    activation_std: float = Field(..., gt=0, le=1000, description="Standard deviation of activations")
+    activation_mean: float = Field(..., description="Mean of activations")
+    activation_shape: List[int] = Field(..., min_length=2, description="Shape of activation tensor")
+    cross_layer_std_ratio: Optional[float] = Field(None, gt=0, description="Cross-layer standard deviation ratio")
+
+    @field_validator('activation_std', 'activation_mean')
+    @classmethod
+    def validate_finite(cls, v):
+        if not math.isfinite(v):
+            raise ValueError("Value must be finite (not NaN or Infinity)")
+        return v
+
+    @field_validator('cross_layer_std_ratio')
+    @classmethod
+    def validate_finite_optional(cls, v):
+        if v is not None and not math.isfinite(v):
+            raise ValueError("Value must be finite (not NaN or Infinity)")
+        return v
 
 class GradientFlow(BaseModel):
-    gradient_l2_norm: float
-    gradient_std: float
-    gradient_max_abs: float
+    gradient_l2_norm: float = Field(..., ge=0, le=1e6, description="L2 norm of gradients")
+    gradient_std: float = Field(..., ge=0, description="Standard deviation of gradients")
+    gradient_max_abs: float = Field(..., ge=0, description="Maximum absolute gradient value")
+
+    @field_validator('gradient_l2_norm', 'gradient_std', 'gradient_max_abs')
+    @classmethod
+    def validate_finite(cls, v):
+        if not math.isfinite(v):
+            raise ValueError("Value must be finite (not NaN or Infinity)")
+        return v
 
 class WeightStats(BaseModel):
-    std: float
-    mean: float
-    spectral_norm: float
-    frobenius_norm: float
+    std: float = Field(..., gt=0, le=100, description="Standard deviation of weights")
+    mean: float = Field(..., description="Mean of weights")
+    spectral_norm: float = Field(..., gt=0, le=1e4, description="Spectral norm of weight matrix")
+    frobenius_norm: float = Field(..., gt=0, le=1e4, description="Frobenius norm of weight matrix")
+
+    @field_validator('std', 'mean', 'spectral_norm', 'frobenius_norm')
+    @classmethod
+    def validate_finite(cls, v):
+        if not math.isfinite(v):
+            raise ValueError("Value must be finite (not NaN or Infinity)")
+        return v
 
 class BiasStats(BaseModel):
-    std: float
-    mean_abs: float
+    std: float = Field(..., ge=0, le=10, description="Standard deviation of bias")
+    mean_abs: float = Field(..., ge=0, description="Mean absolute value of bias")
+
+    @field_validator('std', 'mean_abs')
+    @classmethod
+    def validate_finite(cls, v):
+        if not math.isfinite(v):
+            raise ValueError("Value must be finite (not NaN or Infinity)")
+        return v
 
 class ParameterStatistics(BaseModel):
     weight: WeightStats
     bias: BiasStats
 
 class LayerStatistic(BaseModel):
-    layer_id: str
-    layer_type: str
-    depth_index: int
+    layer_id: str = Field(..., min_length=1, description="Unique identifier for the layer")
+    layer_type: str = Field(..., min_length=1, description="Type of layer (e.g., 'Linear', 'Conv2d')")
+    depth_index: int = Field(..., ge=0, description="Depth index of the layer in the network")
     intermediate_features: IntermediateFeatures
     gradient_flow: GradientFlow
     parameter_statistics: ParameterStatistics
 
 class CrossLayerAnalysis(BaseModel):
-    feature_std_gradient: float
-    gradient_norm_ratio: Dict[str, float]
+    feature_std_gradient: float = Field(..., description="Feature standard deviation gradient")
+    gradient_norm_ratio: Dict[str, float] = Field(default_factory=dict, description="Ratio of gradient norms across layers")
+
+    @field_validator('feature_std_gradient')
+    @classmethod
+    def validate_finite(cls, v):
+        if not math.isfinite(v):
+            raise ValueError("Value must be finite (not NaN or Infinity)")
+        return v
 
 class MetricsPayload(BaseModel):
     metadata: Metadata
-    layer_statistics: List[LayerStatistic]
+    layer_statistics: List[LayerStatistic] = Field(..., min_length=1, description="List of layer statistics")
     cross_layer_analysis: CrossLayerAnalysis
+
+    @field_validator('layer_statistics')
+    @classmethod
+    def check_layer_ordering(cls, v):
+        """Verify depth_index is sequential starting from 0"""
+        if v:
+            for i, layer in enumerate(v):
+                if layer.depth_index != i:
+                    raise ValueError(f"Layer depth_index must be sequential starting from 0. Expected {i}, got {layer.depth_index} for layer '{layer.layer_id}'")
+        return v
 
 
 # ==================== In-Memory Storage ====================
@@ -101,8 +154,8 @@ class MetricsStore:
                 'step': payload.metadata.global_step,
                 'timestamp': payload.metadata.timestamp,
                 'batch_size': payload.metadata.batch_size,
-                'layers': [layer.dict() for layer in payload.layer_statistics],
-                'cross_layer': payload.cross_layer_analysis.dict()
+                'layers': [layer.model_dump() for layer in payload.layer_statistics],
+                'cross_layer': payload.cross_layer_analysis.model_dump()
             }
             
             # Insert in order, avoid duplicates
@@ -198,18 +251,28 @@ async def receive_metrics(payload: MetricsPayload):
     try:
         # Store metrics
         step_data = await store.add_metrics(payload)
-        
+
         # Broadcast to connected WebSocket clients
         await manager.broadcast({
             'type': 'new_metrics',
             'run_id': payload.metadata.run_id,
             'data': step_data
         })
-        
+
         return {"status": "accepted", "run_id": payload.metadata.run_id}
-    
+
+    except ValueError as e:
+        # Handle business logic validation errors
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "validation_error", "message": str(e)}
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Handle unexpected errors
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "internal_error", "message": "Failed to process metrics"}
+        )
 
 
 @app.get("/api/v1/runs")
@@ -249,13 +312,21 @@ async def websocket_endpoint(websocket: WebSocket):
             'type': 'initial_runs',
             'data': runs
         })
-        
+
         # Keep connection alive and handle client messages
         while True:
             try:
                 message = await websocket.receive_text()
-                data = json.loads(message)
-                
+
+                try:
+                    data = json.loads(message)
+                except json.JSONDecodeError:
+                    await websocket.send_json({
+                        'type': 'error',
+                        'message': 'Invalid JSON format'
+                    })
+                    continue
+
                 # Handle subscription to specific run
                 if data.get('action') == 'subscribe_run':
                     run_id = data.get('run_id')
@@ -266,16 +337,21 @@ async def websocket_endpoint(websocket: WebSocket):
                             'run_id': run_id,
                             'data': run
                         })
-                
+                    else:
+                        await websocket.send_json({
+                            'type': 'error',
+                            'message': f"Run '{run_id}' not found"
+                        })
+
                 # Handle ping
                 elif data.get('action') == 'ping':
                     await websocket.send_json({'type': 'pong'})
-                    
+
             except json.JSONDecodeError:
-                pass
+                pass  # Already handled above
             except asyncio.TimeoutError:
                 pass
-                
+
     except WebSocketDisconnect:
         await manager.disconnect(websocket)
     except Exception:
