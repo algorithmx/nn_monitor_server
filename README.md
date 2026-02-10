@@ -1,7 +1,3 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
 This is a **Neural Network Training Monitor Server** - a FastAPI backend that provides real-time monitoring of neural network training metrics. It serves as a lightweight alternative to TensorBoard/WandB, focusing on layer-wise granularity (activations, gradients, parameters per layer) with async HTTP POST ingestion and WebSocket real-time visualization.
