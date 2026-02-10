@@ -45,16 +45,16 @@ app = FastAPI(title="NN Training Monitor", version="1.0.0", max_request_size=con
 # ==================== Data Models ====================
 
 class Metadata(BaseModel):
-    run_id: str = Field(..., min_length=1, pattern=r"^[a-zA-Z0-9_\.-]+$", description="Unique identifier for the training run")
+    run_id: str = Field(..., min_length=1, description="Unique identifier for the training run")
     timestamp: float = Field(..., gt=0, description="Unix epoch timestamp")
     global_step: int = Field(..., ge=0, description="Training step number")
     batch_size: int = Field(..., gt=0, description="Batch size")
 
 class IntermediateFeatures(BaseModel):
-    activation_std: float = Field(..., gt=0, le=1000, description="Standard deviation of activations")
+    activation_std: float = Field(..., ge=0, description="Standard deviation of activations (can be 0 for dead neurons)")
     activation_mean: float = Field(..., description="Mean of activations")
     activation_shape: List[int] = Field(..., min_length=2, description="Shape of activation tensor")
-    cross_layer_std_ratio: Optional[float] = Field(None, gt=0, description="Cross-layer standard deviation ratio")
+    cross_layer_std_ratio: Optional[float] = Field(None, ge=0, description="Cross-layer standard deviation ratio (can be 0 for vanishing)")
 
     @field_validator('activation_std', 'activation_mean')
     @classmethod
@@ -71,7 +71,7 @@ class IntermediateFeatures(BaseModel):
         return v
 
 class GradientFlow(BaseModel):
-    gradient_l2_norm: float = Field(..., ge=0, le=1e6, description="L2 norm of gradients")
+    gradient_l2_norm: float = Field(..., ge=0, description="L2 norm of gradients")
     gradient_std: float = Field(..., ge=0, description="Standard deviation of gradients")
     gradient_max_abs: float = Field(..., ge=0, description="Maximum absolute gradient value")
 
@@ -83,10 +83,10 @@ class GradientFlow(BaseModel):
         return v
 
 class WeightStats(BaseModel):
-    std: float = Field(..., gt=0, le=100, description="Standard deviation of weights")
+    std: float = Field(..., ge=0, description="Standard deviation of weights (can be 0 for zero initialization)")
     mean: float = Field(..., description="Mean of weights")
-    spectral_norm: float = Field(..., gt=0, le=1e4, description="Spectral norm of weight matrix")
-    frobenius_norm: float = Field(..., gt=0, le=1e4, description="Frobenius norm of weight matrix")
+    spectral_norm: float = Field(..., ge=0, description="Spectral norm of weight matrix")
+    frobenius_norm: float = Field(..., ge=0, description="Frobenius norm of weight matrix")
 
     @field_validator('std', 'mean', 'spectral_norm', 'frobenius_norm')
     @classmethod
@@ -96,7 +96,7 @@ class WeightStats(BaseModel):
         return v
 
 class BiasStats(BaseModel):
-    std: float = Field(..., ge=0, le=10, description="Standard deviation of bias")
+    std: float = Field(..., ge=0, description="Standard deviation of bias")
     mean_abs: float = Field(..., ge=0, description="Mean absolute value of bias")
 
     @field_validator('std', 'mean_abs')
@@ -137,11 +137,16 @@ class MetricsPayload(BaseModel):
     @field_validator('layer_statistics')
     @classmethod
     def check_layer_ordering(cls, v):
-        """Verify depth_index is sequential starting from 0"""
+        """Verify layers are sorted by depth_index and depth_index is non-negative"""
         if v:
+            # Check that depth_index values are non-negative
             for i, layer in enumerate(v):
-                if layer.depth_index != i:
-                    raise ValueError(f"Layer depth_index must be sequential starting from 0. Expected {i}, got {layer.depth_index} for layer '{layer.layer_id}'")
+                if layer.depth_index < 0:
+                    raise ValueError(f"Layer depth_index must be non-negative, got {layer.depth_index} for layer '{layer.layer_id}'")
+            # Check that layers are sorted by depth_index
+            for i in range(len(v) - 1):
+                if v[i].depth_index > v[i + 1].depth_index:
+                    raise ValueError(f"Layers must be sorted by depth_index: {v[i].layer_id} has depth_index {v[i].depth_index} but {v[i + 1].layer_id} has depth_index {v[i + 1].depth_index}")
         return v
 
 
