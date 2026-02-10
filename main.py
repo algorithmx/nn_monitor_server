@@ -215,13 +215,6 @@ class RunInfo(BaseModel):
     latest_step: Optional[int] = Field(None, ge=0, description="Latest step number")
 
 
-class RunData(BaseModel):
-    """Full data for a run"""
-    created_at: str = Field(..., description="ISO format creation timestamp")
-    last_update: str = Field(..., description="ISO format last update timestamp")
-    steps: List[Dict[str, Any]] = Field(default_factory=list, description="Step data")
-
-
 class StepData(BaseModel):
     """Data for a single step"""
     step: int = Field(..., ge=0, description="Step number")
@@ -229,6 +222,13 @@ class StepData(BaseModel):
     batch_size: int = Field(..., gt=0, description="Batch size")
     layers: List[Dict[str, Any]] = Field(..., min_length=1, description="Layer statistics")
     cross_layer: Dict[str, Any] = Field(..., description="Cross-layer analysis")
+
+
+class RunData(BaseModel):
+    """Full data for a run"""
+    created_at: str = Field(..., description="ISO format creation timestamp")
+    last_update: str = Field(..., description="ISO format last update timestamp")
+    steps: List[StepData] = Field(default_factory=list, description="Step data")
 
 
 class HealthResponse(BaseModel):
