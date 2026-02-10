@@ -27,9 +27,9 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            font-size: 11px;
-            letter-spacing: -0.02em;
-            line-height: 1.4;
+            font-size: 14px;
+            letter-spacing: -0.01em;
+            line-height: 1.5;
         }
 
         /* Header - ultra minimal */
@@ -37,15 +37,15 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 12px;
+            padding: 10px 16px;
             border-bottom: 1px solid var(--border);
             background: var(--surface);
         }
 
         .brand {
-            font-size: 10px;
+            font-size: 14px;
             font-weight: 600;
-            letter-spacing: 0.1em;
+            letter-spacing: 0.05em;
             text-transform: uppercase;
             color: var(--text-bright);
         }
@@ -53,15 +53,15 @@
         .status {
             display: flex;
             align-items: center;
-            gap: 6px;
-            font-size: 9px;
+            gap: 8px;
+            font-size: 12px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
 
         .status-dot {
-            width: 6px;
-            height: 6px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             background: var(--health-good);
             animation: pulse 2s infinite;
@@ -78,8 +78,8 @@
         .history-controls {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 8px 12px;
+            gap: 16px;
+            padding: 10px 16px;
             border-bottom: 1px solid var(--border);
             background: var(--surface);
         }
@@ -88,12 +88,12 @@
         .mode-badge {
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            border-radius: 3px;
-            font-size: 9px;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 11px;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
+            letter-spacing: 0.05em;
             font-weight: 600;
             background: var(--bg);
             border: 1px solid var(--border);
@@ -122,23 +122,23 @@
         }
 
         .badge-dot {
-            width: 6px;
-            height: 6px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
         }
 
         /* Live/Pause button */
         .btn-live {
-            padding: 6px 14px;
+            padding: 8px 16px;
             background: var(--surface);
             border: 1px solid var(--border);
             color: var(--text-bright);
             font-family: inherit;
-            font-size: 9px;
+            font-size: 11px;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
+            letter-spacing: 0.05em;
             cursor: pointer;
-            border-radius: 3px;
+            border-radius: 4px;
             transition: all 0.15s;
         }
 
@@ -172,16 +172,16 @@
         }
 
         .nav-btn {
-            width: 28px;
-            height: 28px;
+            width: 32px;
+            height: 32px;
             padding: 0;
             background: var(--surface);
             border: 1px solid var(--border);
             color: var(--text);
             font-family: inherit;
-            font-size: 12px;
+            font-size: 14px;
             cursor: pointer;
-            border-radius: 3px;
+            border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -202,13 +202,13 @@
         .step-slider-container {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
         }
 
         .step-slider {
             flex: 1;
-            min-width: 120px;
-            height: 4px;
+            min-width: 140px;
+            height: 5px;
             -webkit-appearance: none;
             appearance: none;
             background: var(--border);
@@ -219,8 +219,8 @@
         .step-slider::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 12px;
-            height: 12px;
+            width: 14px;
+            height: 14px;
             background: var(--text-bright);
             cursor: pointer;
             border-radius: 50%;
@@ -233,8 +233,8 @@
         }
 
         .step-slider::-moz-range-thumb {
-            width: 12px;
-            height: 12px;
+            width: 14px;
+            height: 14px;
             background: var(--text-bright);
             cursor: pointer;
             border: none;
@@ -253,9 +253,9 @@
         }
 
         .step-display {
-            min-width: 60px;
+            min-width: 80px;
             text-align: right;
-            font-size: 10px;
+            font-size: 13px;
             font-variant-numeric: tabular-nums;
             color: var(--text-bright);
         }
@@ -264,7 +264,7 @@
         main {
             flex: 1;
             display: grid;
-            grid-template-columns: 200px 1fr;
+            grid-template-columns: 220px 1fr;
             gap: 1px;
             background: var(--border);
         }
@@ -272,22 +272,22 @@
         /* Sidebar - run selector and summary */
         aside {
             background: var(--bg);
-            padding: 12px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 16px;
         }
 
         .control {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 6px;
         }
 
         .control label {
-            font-size: 8px;
+            font-size: 11px;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
+            letter-spacing: 0.08em;
             color: var(--text);
         }
 
@@ -295,10 +295,10 @@
             background: var(--surface);
             border: 1px solid var(--border);
             color: var(--text-bright);
-            padding: 6px 8px;
+            padding: 8px 10px;
             font-family: inherit;
-            font-size: 10px;
-            border-radius: 0;
+            font-size: 13px;
+            border-radius: 4px;
             cursor: pointer;
             outline: none;
         }
@@ -308,15 +308,15 @@
 
         .summary {
             margin-top: auto;
-            padding-top: 12px;
+            padding-top: 16px;
             border-top: 1px solid var(--border);
         }
 
         .summary-item {
             display: flex;
             justify-content: space-between;
-            padding: 4px 0;
-            font-size: 10px;
+            padding: 6px 0;
+            font-size: 13px;
         }
 
         .summary-item .value {
@@ -324,22 +324,23 @@
             font-variant-numeric: tabular-nums;
         }
 
-        /* Layer grid */
+        /* Layer grid - COMPACT */
         .layers {
             background: var(--bg);
-            padding: 12px;
+            padding: 16px;
             overflow-y: auto;
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 8px;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
             align-content: start;
         }
 
         .layer {
             border: 1px solid var(--border);
-            padding: 10px;
+            padding: 10px 8px;
             position: relative;
             transition: border-color 0.15s;
+            background: var(--surface);
         }
 
         .layer:hover {
@@ -353,30 +354,34 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
+            gap: 6px;
         }
 
         .layer-name {
-            font-size: 10px;
+            font-size: 13px;
             font-weight: 600;
             color: var(--text-bright);
-            letter-spacing: 0.02em;
+            letter-spacing: 0.01em;
+            word-break: break-word;
         }
 
         .layer-type {
-            font-size: 8px;
+            font-size: 10px;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
+            letter-spacing: 0.05em;
             color: var(--text);
+            white-space: nowrap;
         }
 
-        /* Pulse visualization - the living heartbeat */
+        /* Pulse visualization - COMPACT */
         .pulse-viz {
-            height: 24px;
-            background: var(--surface);
+            height: 28px;
+            background: var(--bg);
             position: relative;
             overflow: hidden;
             margin-bottom: 8px;
+            border-radius: 2px;
         }
 
         .pulse-line {
@@ -387,11 +392,11 @@
             bottom: 0;
         }
 
-        /* Metrics row */
+        /* Metrics row - COMPACT */
         .metrics {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
+            gap: 6px;
         }
 
         .metric {
@@ -399,16 +404,16 @@
         }
 
         .metric-value {
-            font-size: 13px;
+            font-size: 16px;
             font-weight: 600;
             font-variant-numeric: tabular-nums;
             transition: color 0.15s;
         }
 
         .metric-label {
-            font-size: 7px;
+            font-size: 9px;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
+            letter-spacing: 0.05em;
             color: var(--text);
             margin-top: 2px;
         }
@@ -427,13 +432,13 @@
             justify-content: center;
             height: 100%;
             color: var(--text);
-            font-size: 11px;
+            font-size: 14px;
         }
 
         .empty::before {
             content: '◷';
-            font-size: 32px;
-            margin-bottom: 12px;
+            font-size: 48px;
+            margin-bottom: 16px;
             opacity: 0.3;
             animation: pulse 2s infinite;
         }
@@ -446,11 +451,11 @@
             right: 0;
             background: var(--surface);
             border-top: 1px solid var(--border);
-            padding: 8px 12px;
+            padding: 10px 16px;
             display: flex;
-            gap: 12px;
+            gap: 16px;
             align-items: center;
-            font-size: 10px;
+            font-size: 12px;
             transform: translateY(100%);
             transition: transform 0.2s;
             z-index: 10;
@@ -463,14 +468,14 @@
         .alert {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
         }
 
         .alert-icon { color: var(--health-warn); }
         .alert.critical .alert-icon { color: var(--health-bad); }
 
         /* Scrollbar */
-        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border); }
         ::-webkit-scrollbar-thumb:hover { background: #333; }
