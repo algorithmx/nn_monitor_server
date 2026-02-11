@@ -109,7 +109,7 @@ class BiasStats(BaseModel):
 
 class ParameterStatistics(BaseModel):
     weight: WeightStats
-    bias: BiasStats
+    bias: Optional[BiasStats] = None  # Optional: some layers (e.g., Conv2d with bias=False) don't have bias
 
 class LayerStatistic(BaseModel):
     layer_id: str = Field(..., min_length=1, description="Unique identifier for the layer")
