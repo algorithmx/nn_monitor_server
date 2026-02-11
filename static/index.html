@@ -1576,16 +1576,61 @@
             });
             ctx.stroke();
 
-            // Draw y=0 baseline (dashed black line)
-            const zeroY = h - h * 0.1;
-            ctx.strokeStyle = '#000';
+            // Draw outer frame
+            ctx.strokeStyle = '#888';
             ctx.lineWidth = 1;
-            ctx.setLineDash([4, 4]);
-            ctx.beginPath();
-            ctx.moveTo(0, zeroY);
-            ctx.lineTo(w, zeroY);
-            ctx.stroke();
-            ctx.setLineDash([]);
+            ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+
+            // Draw left Y-axis ticks (green, for activation)
+            ctx.strokeStyle = '#4a9';
+            ctx.fillStyle = '#4a9';
+            ctx.font = '10px SF Mono, Menlo, Monaco, monospace';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            const tickLength = 5;
+            const leftPadding = 4;
+            for (let i = 0; i <= 2; i++) {
+                const frac = i / 2;
+                const y = h * 0.1 + frac * h * 0.8;
+                // Tick mark
+                ctx.beginPath();
+                ctx.moveTo(0.5, y);
+                ctx.lineTo(0.5 + tickLength, y);
+                ctx.stroke();
+                // Label
+                const value = maxAct * (1 - frac);
+                const label = formatValue(value);
+                ctx.fillText(label, leftPadding, y);
+            }
+
+            // Draw right Y-axis ticks (purple, for gradient)
+            ctx.strokeStyle = '#a371f7';
+            ctx.fillStyle = '#a371f7';
+            ctx.textAlign = 'right';
+            const rightPadding = w - 4;
+            for (let i = 0; i <= 2; i++) {
+                const frac = i / 2;
+                const y = h * 0.1 + frac * h * 0.8;
+                // Tick mark
+                ctx.beginPath();
+                ctx.moveTo(w - 0.5 - tickLength, y);
+                ctx.lineTo(w - 0.5, y);
+                ctx.stroke();
+                // Label
+                const value = effectiveGradMax * (1 - frac);
+                const label = formatValue(value);
+                ctx.fillText(label, rightPadding, y);
+            }
+        }
+
+        // Helper function to format values concisely
+        function formatValue(val) {
+            if (val >= 1000) return (val / 1000).toFixed(1) + 'k';
+            if (val >= 100) return val.toFixed(0);
+            if (val >= 10) return val.toFixed(1);
+            if (val >= 1) return val.toFixed(2);
+            if (val >= 0.01) return val.toFixed(3);
+            return val.toExponential(1);
         }
 
         function checkAlerts(step) {
@@ -1678,6 +1723,17 @@
             const w = rect.width;
             const h = rect.height;
 
+            // Define padding for axes
+            const leftPadding = 50;
+            const rightPadding = 50;
+            const bottomPadding = 25;
+            const topPadding = 10;
+
+            const plotW = w - leftPadding - rightPadding;
+            const plotH = h - topPadding - bottomPadding;
+            const plotX = leftPadding;
+            const plotY = topPadding;
+
             ctx.clearRect(0, 0, w, h);
 
             // Find min/max for scaling - activation and gradient scale independently
@@ -1690,14 +1746,14 @@
             // Apply gradient scale to determine effective max for gradient plotting
             const effectiveGradMax = Math.max(maxGrad * state.vizConfig.gradScale, 0.001);
 
-            // Draw grid lines
+            // Draw horizontal grid lines (aligned with ticks)
             ctx.strokeStyle = '#e0e0e0';
             ctx.lineWidth = 0.5;
             for (let i = 0; i <= 4; i++) {
-                const y = (i / 4) * h;
+                const y = plotY + (i / 4) * plotH;
                 ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(w, y);
+                ctx.moveTo(plotX, y);
+                ctx.lineTo(plotX + plotW, y);
                 ctx.stroke();
             }
 
@@ -1707,8 +1763,8 @@
             ctx.beginPath();
 
             pulseHistory.forEach((pt, i) => {
-                const x = (i / (pulseHistory.length - 1)) * w;
-                const y = h - (pt.actStd / maxAct) * h * 0.8 - h * 0.1;
+                const x = plotX + (i / (pulseHistory.length - 1)) * plotW;
+                const y = plotY + plotH - (pt.actStd / maxAct) * plotH;
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             });
@@ -1720,36 +1776,98 @@
             ctx.beginPath();
 
             pulseHistory.forEach((pt, i) => {
-                const x = (i / (pulseHistory.length - 1)) * w;
+                const x = plotX + (i / (pulseHistory.length - 1)) * plotW;
                 // Apply gradient scale multiplier for visualization
                 const scaledGradNorm = pt.gradNorm * state.vizConfig.gradScale;
-                const y = h - (scaledGradNorm / effectiveGradMax) * h * 0.8 - h * 0.1;
+                const y = plotY + plotH - (scaledGradNorm / effectiveGradMax) * plotH;
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
             });
             ctx.stroke();
 
-            // Draw y=0 baseline (dashed black line)
-            const zeroY = h - h * 0.1;
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 4]);
+            // Draw left Y-axis (green, for activation)
+            ctx.strokeStyle = '#4a9';
+            ctx.fillStyle = '#4a9';
+            ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.moveTo(0, zeroY);
-            ctx.lineTo(w, zeroY);
+            ctx.moveTo(plotX, plotY);
+            ctx.lineTo(plotX, plotY + plotH);
             ctx.stroke();
-            ctx.setLineDash([]);
 
-            // Draw step labels
+            // Left Y-axis ticks and labels
+            ctx.font = '12px SF Mono, Menlo, Monaco, monospace';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            for (let i = 0; i <= 4; i++) {
+                const frac = i / 4;
+                const y = plotY + plotH - frac * plotH;
+                // Tick mark
+                ctx.beginPath();
+                ctx.moveTo(plotX - 5, y);
+                ctx.lineTo(plotX, y);
+                ctx.stroke();
+                // Label
+                const value = maxAct * frac;
+                const label = formatValue(value);
+                ctx.fillText(label, plotX - 8, y);
+            }
+
+            // Draw right Y-axis (purple, for gradient)
+            ctx.strokeStyle = '#a371f7';
+            ctx.fillStyle = '#a371f7';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(plotX + plotW, plotY);
+            ctx.lineTo(plotX + plotW, plotY + plotH);
+            ctx.stroke();
+
+            // Right Y-axis ticks and labels
+            ctx.textAlign = 'left';
+            for (let i = 0; i <= 4; i++) {
+                const frac = i / 4;
+                const y = plotY + plotH - frac * plotH;
+                // Tick mark
+                ctx.beginPath();
+                ctx.moveTo(plotX + plotW, y);
+                ctx.lineTo(plotX + plotW + 5, y);
+                ctx.stroke();
+                // Label
+                const value = effectiveGradMax * frac;
+                const label = formatValue(value);
+                ctx.fillText(label, plotX + plotW + 8, y);
+            }
+
+            // Draw bottom X-axis
+            ctx.strokeStyle = '#888';
             ctx.fillStyle = '#888';
-            ctx.font = '11px SF Mono, Menlo, Monaco, monospace';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(plotX, plotY + plotH);
+            ctx.lineTo(plotX + plotW, plotY + plotH);
+            ctx.stroke();
+
+            // X-axis ticks and step labels
+            ctx.font = '12px SF Mono, Menlo, Monaco, monospace';
             ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
 
             // Show first, middle, last step numbers
             if (pulseHistory.length > 2) {
-                ctx.fillText(pulseHistory[0].step.toString(), 5, h - 5);
-                ctx.fillText(pulseHistory[Math.floor(pulseHistory.length / 2)].step.toString(), w / 2, h - 5);
-                ctx.fillText(pulseHistory[pulseHistory.length - 1].step.toString(), w - 5, h - 5);
+                const stepPositions = [
+                    { idx: 0, x: plotX },
+                    { idx: Math.floor(pulseHistory.length / 2), x: plotX + plotW / 2 },
+                    { idx: pulseHistory.length - 1, x: plotX + plotW }
+                ];
+                stepPositions.forEach(pos => {
+                    const y = plotY + plotH;
+                    // Tick mark
+                    ctx.beginPath();
+                    ctx.moveTo(pos.x, y);
+                    ctx.lineTo(pos.x, y + 5);
+                    ctx.stroke();
+                    // Label
+                    ctx.fillText(pulseHistory[pos.idx].step.toString(), pos.x, y + 8);
+                });
             }
         }
 
@@ -1777,6 +1895,12 @@
 
         function closeConfig() {
             configPanel.classList.remove('visible');
+            // Re-render plots after config closes to ensure changes take effect
+            if (state.runData) render();
+            // Also update modal if it's open
+            if (modal.classList.contains('visible')) {
+                drawModalPulse();
+            }
         }
 
         btnSettings.addEventListener('click', openConfig);
@@ -1792,6 +1916,10 @@
             gradScaleValue.textContent = value.toFixed(1) + 'x';
             // Re-render plots with new scale
             if (state.runData) render();
+            // Also update modal if it's open
+            if (modal.classList.contains('visible')) {
+                drawModalPulse();
+            }
         });
 
         // Close config panel on Escape
