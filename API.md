@@ -96,14 +96,18 @@ Get complete data for a specific run including all step history.
       "timestamp": 1707589000.123,
       "batch_size": 64,
       "layers": [...],
-      "cross_layer": {...}
+      "cross_layer": {...},
+      "layer_groups": null
     },
     {
       "step": 1500,
       "timestamp": 1707589200.123,
       "batch_size": 64,
       "layers": [...],
-      "cross_layer": {...}
+      "cross_layer": {...},
+      "layer_groups": {
+        "encoder": ["encoder/linear1", "encoder/relu1"]
+      }
     }
   ]
 }
@@ -123,7 +127,11 @@ Get only the most recent step data for a run.
   "timestamp": 1707589200.123,
   "batch_size": 64,
   "layers": [...],
-  "cross_layer": {...}
+  "cross_layer": {...},
+  "layer_groups": {
+    "encoder": ["encoder/linear1", "encoder/relu1"],
+    "decoder": ["decoder/linear1", "decoder/relu1"]
+  }
 }
 ```
 
@@ -220,7 +228,11 @@ ws://localhost:8000/ws
     "timestamp": 1707589200.123,
     "batch_size": 64,
     "layers": [...],
-    "cross_layer": {...}
+    "cross_layer": {...},
+    "layer_groups": {
+      "encoder": ["encoder/linear1", "encoder/relu1"],
+      "decoder": ["decoder/linear1", "decoder/relu1"]
+    }
   }
 }
 ```

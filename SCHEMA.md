@@ -159,7 +159,7 @@ Aggregated metrics computed across multiple layers to detect depth-wise patterns
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `feature_std_gradient` | float | Yes | Linear slope of activation std vs depth (negative = vanishing) |
-| `gradient_norm_ratio` | object | Yes | Map of layer pairs to gradient norm ratios (||∇_i|| / ||∇_{i-1}||) |
+| `gradient_norm_ratio` | object | No | Map of layer pairs to gradient norm ratios (||∇_i|| / ||∇_{i-1}||); defaults to empty object `{}` |
 
 ```json
 "cross_layer_analysis": {
@@ -287,7 +287,7 @@ Aggregated metrics computed across multiple layers to detect depth-wise patterns
 ## Validation Rules
 
 1. **All numeric fields must be finite** - no NaN or Infinity values
-2. **`depth_index` must be sequential** - starting from 0 for the first layer
+2. **`depth_index` must be sorted** - values must be in ascending order (typically starting from 0)
 3. **`layer_statistics` array must not be empty**
 4. **`activation_shape` must have at least 2 dimensions** (batch_size + feature dimensions)
 5. **`gradient_norm_ratio` keys should use `{layer_id}_to_prev` format**
