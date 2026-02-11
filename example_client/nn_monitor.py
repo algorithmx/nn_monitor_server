@@ -156,7 +156,8 @@ class LayerwiseMonitor:
         self.log_interval = log_interval
         self.batch_size = batch_size
         self.global_step = 0
-        self.layer_groups = layer_groups
+        # Sanitize layer group IDs to match sanitized layer IDs (converts dots to slashes)
+        self.layer_groups = self._sanitize_layer_groups(layer_groups) if layer_groups else None
 
         # Generate run_id if not provided
         if run_id is None:
@@ -230,6 +231,25 @@ class LayerwiseMonitor:
     def _sanitize_name(self, name: str) -> str:
         """Clean names for JSON keys"""
         return name.replace('.', '/')
+
+    def _sanitize_layer_groups(self, layer_groups: Dict[str, List[str]]) -> Dict[str, List[str]]:
+        """Sanitize layer group IDs to match sanitized layer IDs (converts dots to slashes).
+
+        This ensures that layer group definitions match the sanitized layer IDs
+        sent to the server, even if the user provides layer IDs with dots.
+
+        Args:
+            layer_groups: Dict mapping group names to lists of layer IDs
+
+        Returns:
+            Dict with all layer IDs sanitized (dots replaced with slashes)
+        """
+        if not layer_groups:
+            return layer_groups
+        return {
+            group_name: [self._sanitize_name(layer_id) for layer_id in layer_ids]
+            for group_name, layer_ids in layer_groups.items()
+        }
 
     def _approx_spectral_norm(self, W: torch.Tensor, n_iter: int = 3) -> float:
         """Power iteration for spectral norm approximation.

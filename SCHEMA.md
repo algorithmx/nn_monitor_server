@@ -39,6 +39,8 @@ Top-level information about the training step.
 | `batch_size` | integer | Yes | Batch size used for this step |
 | `layer_groups` | object | No | Grouping specification for layers; maps group names to arrays of layer_id strings |
 
+**Note:** Layer IDs use forward slash (`/`) as separator (e.g., `encoder/linear1`) for JSON compatibility. Dots (`.`) are automatically converted to slashes by the monitoring client.
+
 ```json
 "metadata": {
   "run_id": "experiment_2024_0210_v2",
@@ -46,8 +48,8 @@ Top-level information about the training step.
   "global_step": 1500,
   "batch_size": 64,
   "layer_groups": {
-    "encoder": ["encoder.linear1", "encoder.relu1", "encoder.linear2"],
-    "decoder": ["decoder.linear1", "decoder.relu1", "decoder.linear2"]
+    "encoder": ["encoder/linear1", "encoder/relu1", "encoder/linear2"],
+    "decoder": ["decoder/linear1", "decoder/relu1", "decoder/linear2"]
   }
 }
 ```
@@ -62,7 +64,7 @@ Array of layer-specific metrics. One element per monitored layer.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `layer_id` | string | Yes | Unique layer identifier (e.g., "encoder.linear1") |
+| `layer_id` | string | Yes | Unique layer identifier (e.g., "encoder/linear1") |
 | `layer_type` | string | Yes | Layer class name (e.g., "Linear", "Conv2d", "ReLU") |
 | `depth_index` | integer | Yes | 0-based position of layer in the network |
 | `intermediate_features` | IntermediateFeatures | Yes | Activation statistics |
@@ -181,12 +183,12 @@ Aggregated metrics computed across multiple layers to detect depth-wise patterns
     "global_step": 1500,
     "batch_size": 64,
     "layer_groups": {
-      "encoder": ["encoder.linear1", "encoder.relu1", "encoder.linear2"]
+      "encoder": ["encoder/linear1", "encoder/relu1", "encoder/linear2"]
     }
   },
   "layer_statistics": [
     {
-      "layer_id": "encoder.linear1",
+      "layer_id": "encoder/linear1",
       "layer_type": "Linear",
       "depth_index": 0,
       "intermediate_features": {
@@ -214,7 +216,7 @@ Aggregated metrics computed across multiple layers to detect depth-wise patterns
       }
     },
     {
-      "layer_id": "encoder.relu1",
+      "layer_id": "encoder/relu1",
       "layer_type": "ReLU",
       "depth_index": 1,
       "intermediate_features": {
@@ -242,7 +244,7 @@ Aggregated metrics computed across multiple layers to detect depth-wise patterns
       }
     },
     {
-      "layer_id": "encoder.linear2",
+      "layer_id": "encoder/linear2",
       "layer_type": "Linear",
       "depth_index": 2,
       "intermediate_features": {
@@ -273,8 +275,8 @@ Aggregated metrics computed across multiple layers to detect depth-wise patterns
   "cross_layer_analysis": {
     "feature_std_gradient": -0.2,
     "gradient_norm_ratio": {
-      "encoder.relu1_to_prev": 0.586,
-      "encoder.linear2_to_prev": 0.528
+      "encoder/relu1_to_prev": 0.586,
+      "encoder/linear2_to_prev": 0.528
     }
   }
 }

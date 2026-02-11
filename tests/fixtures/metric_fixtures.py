@@ -70,17 +70,22 @@ def valid_three_layer_network() -> Dict[str, Any]:
     Realistic three-layer network (Linear-ReLU-Linear).
 
     Tests proper depth ordering and cross-layer ratios.
+    Includes layer_groups to test grouping functionality.
     """
     return {
         "metadata": {
             "run_id": "three_layer_net",
             "timestamp": 1707589200.123,
             "global_step": 500,
-            "batch_size": 64
+            "batch_size": 64,
+            "layer_groups": {
+                "encoder": ["encoder/linear1", "encoder/relu1"],
+                "decoder": ["encoder/linear2"]
+            }
         },
         "layer_statistics": [
             {
-                "layer_id": "encoder.linear1",
+                "layer_id": "encoder/linear1",
                 "layer_type": "Linear",
                 "depth_index": 0,
                 "intermediate_features": {
@@ -108,7 +113,7 @@ def valid_three_layer_network() -> Dict[str, Any]:
                 }
             },
             {
-                "layer_id": "encoder.relu1",
+                "layer_id": "encoder/relu1",
                 "layer_type": "ReLU",
                 "depth_index": 1,
                 "intermediate_features": {
@@ -136,7 +141,7 @@ def valid_three_layer_network() -> Dict[str, Any]:
                 }
             },
             {
-                "layer_id": "encoder.linear2",
+                "layer_id": "encoder/linear2",
                 "layer_type": "Linear",
                 "depth_index": 2,
                 "intermediate_features": {
@@ -167,8 +172,8 @@ def valid_three_layer_network() -> Dict[str, Any]:
         "cross_layer_analysis": {
             "feature_std_gradient": -0.2,
             "gradient_norm_ratio": {
-                "encoder.relu1_to_prev": 0.586,
-                "encoder.linear2_to_prev": 0.528
+                "encoder/relu1_to_prev": 0.586,
+                "encoder/linear2_to_prev": 0.528
             }
         }
     }

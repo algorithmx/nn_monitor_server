@@ -23,7 +23,7 @@ def test_spec_example_payload():
         },
         "layer_statistics": [
             {
-                "layer_id": "encoder.linear1",
+                "layer_id": "encoder/linear1",
                 "layer_type": "Linear",
                 "depth_index": 0,
                 "intermediate_features": {
@@ -51,7 +51,7 @@ def test_spec_example_payload():
                 }
             },
             {
-                "layer_id": "encoder.linear2",
+                "layer_id": "encoder/linear2",
                 "layer_type": "Linear",
                 "depth_index": 1,
                 "intermediate_features": {
@@ -82,7 +82,7 @@ def test_spec_example_payload():
         "cross_layer_analysis": {
             "feature_std_gradient": -0.052,
             "gradient_norm_ratio": {
-                "encoder.linear2_to_encoder.linear1": 0.586
+                "encoder/linear2_to_encoder/linear1": 0.586
             }
         }
     }
