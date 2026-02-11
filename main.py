@@ -247,7 +247,16 @@ class ErrorDetail(BaseModel):
     message: str = Field(..., min_length=1, description="Human-readable error message")
 
 
-# ==================== In-Memory Storage ====================
+# ==================== In-Memory Storage =====================
+
+def _sanitize_layer_id(layer_id: str) -> str:
+    """Convert dots to slashes for consistent layer ID format.
+    
+    This ensures all layer IDs use forward slashes as separators,
+    making layer grouping and frontend display more reliable.
+    """
+    return layer_id.replace('.', '/')
+
 
 class MetricsStore:
     """Thread-safe in-memory storage for metrics with automatic cleanup"""
@@ -277,14 +286,29 @@ class MetricsStore:
 
             run = self.runs[run_id]
 
+            # Sanitize layer IDs in layer_statistics
+            sanitized_layers = []
+            for layer in payload.layer_statistics:
+                layer_dict = layer.model_dump()
+                layer_dict['layer_id'] = _sanitize_layer_id(layer_dict['layer_id'])
+                sanitized_layers.append(layer_dict)
+            
+            # Sanitize layer IDs in layer_groups
+            sanitized_layer_groups = None
+            if payload.metadata.layer_groups:
+                sanitized_layer_groups = {
+                    group_name: [_sanitize_layer_id(lid) for lid in layer_ids]
+                    for group_name, layer_ids in payload.metadata.layer_groups.items()
+                }
+            
             # Add new step data using pydantic model
             step_data = StepData(
                 step=payload.metadata.global_step,
                 timestamp=payload.metadata.timestamp,
                 batch_size=payload.metadata.batch_size,
-                layers=[layer.model_dump() for layer in payload.layer_statistics],
+                layers=sanitized_layers,
                 cross_layer=payload.cross_layer_analysis.model_dump(),
-                layer_groups=payload.metadata.layer_groups
+                layer_groups=sanitized_layer_groups
             )
 
             # Insert in order, avoid duplicates

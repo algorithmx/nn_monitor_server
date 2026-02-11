@@ -79,8 +79,7 @@ def valid_three_layer_network() -> Dict[str, Any]:
             "global_step": 500,
             "batch_size": 64,
             "layer_groups": {
-                "encoder": ["encoder/linear1", "encoder/relu1"],
-                "decoder": ["encoder/linear2"]
+                "encoder": ["encoder/linear1", "encoder/relu1", "encoder/linear2"]
             }
         },
         "layer_statistics": [
@@ -174,6 +173,150 @@ def valid_three_layer_network() -> Dict[str, Any]:
             "gradient_norm_ratio": {
                 "encoder/relu1_to_prev": 0.586,
                 "encoder/linear2_to_prev": 0.528
+            }
+        }
+    }
+
+
+def layer_groups_with_dots() -> Dict[str, Any]:
+    """
+    Test fixture for server-side layer ID sanitization.
+    
+    Layer IDs use dots (e.g., 'encoder.linear1') instead of slashes.
+    The server should automatically convert these to slashes.
+    This tests that layer grouping works correctly after sanitization.
+    """
+    return {
+        "metadata": {
+            "run_id": "sanitization_test",
+            "timestamp": 1707589200.123,
+            "global_step": 100,
+            "batch_size": 32,
+            "layer_groups": {
+                "encoder": ["encoder.linear1", "encoder.relu1"],
+                "decoder": ["decoder.linear1", "decoder.relu1"]
+            }
+        },
+        "layer_statistics": [
+            {
+                "layer_id": "encoder.linear1",
+                "layer_type": "Linear",
+                "depth_index": 0,
+                "intermediate_features": {
+                    "activation_std": 0.5,
+                    "activation_mean": 0.0,
+                    "activation_shape": [32, 128],
+                    "cross_layer_std_ratio": None
+                },
+                "gradient_flow": {
+                    "gradient_l2_norm": 0.1,
+                    "gradient_std": 0.01,
+                    "gradient_max_abs": 0.05
+                },
+                "parameter_statistics": {
+                    "weight": {
+                        "std": 0.1,
+                        "mean": 0.0,
+                        "spectral_norm": 1.0,
+                        "frobenius_norm": 1.5
+                    },
+                    "bias": {
+                        "std": 0.01,
+                        "mean_abs": 0.005
+                    }
+                }
+            },
+            {
+                "layer_id": "encoder.relu1",
+                "layer_type": "ReLU",
+                "depth_index": 1,
+                "intermediate_features": {
+                    "activation_std": 0.4,
+                    "activation_mean": 0.2,
+                    "activation_shape": [32, 128],
+                    "cross_layer_std_ratio": 0.8
+                },
+                "gradient_flow": {
+                    "gradient_l2_norm": 0.08,
+                    "gradient_std": 0.008,
+                    "gradient_max_abs": 0.04
+                },
+                "parameter_statistics": {
+                    "weight": {
+                        "std": 0.0,
+                        "mean": 0.0,
+                        "spectral_norm": 0.0,
+                        "frobenius_norm": 0.0
+                    },
+                    "bias": {
+                        "std": 0.0,
+                        "mean_abs": 0.0
+                    }
+                }
+            },
+            {
+                "layer_id": "decoder.linear1",
+                "layer_type": "Linear",
+                "depth_index": 2,
+                "intermediate_features": {
+                    "activation_std": 0.3,
+                    "activation_mean": 0.01,
+                    "activation_shape": [32, 64],
+                    "cross_layer_std_ratio": 0.75
+                },
+                "gradient_flow": {
+                    "gradient_l2_norm": 0.05,
+                    "gradient_std": 0.005,
+                    "gradient_max_abs": 0.025
+                },
+                "parameter_statistics": {
+                    "weight": {
+                        "std": 0.08,
+                        "mean": 0.0,
+                        "spectral_norm": 0.9,
+                        "frobenius_norm": 1.2
+                    },
+                    "bias": {
+                        "std": 0.005,
+                        "mean_abs": 0.002
+                    }
+                }
+            },
+            {
+                "layer_id": "decoder.relu1",
+                "layer_type": "ReLU",
+                "depth_index": 3,
+                "intermediate_features": {
+                    "activation_std": 0.25,
+                    "activation_mean": 0.12,
+                    "activation_shape": [32, 64],
+                    "cross_layer_std_ratio": 0.83
+                },
+                "gradient_flow": {
+                    "gradient_l2_norm": 0.04,
+                    "gradient_std": 0.004,
+                    "gradient_max_abs": 0.02
+                },
+                "parameter_statistics": {
+                    "weight": {
+                        "std": 0.0,
+                        "mean": 0.0,
+                        "spectral_norm": 0.0,
+                        "frobenius_norm": 0.0
+                    },
+                    "bias": {
+                        "std": 0.0,
+                        "mean_abs": 0.0
+                    }
+                }
+            }
+        ],
+        "cross_layer_analysis": {
+            "feature_std_gradient": -0.08,
+            "gradient_norm_ratio": {
+                "encoder.relu1_to_prev": 0.8,
+                "decoder.linear1_to_prev": 0.625,
+                "decoder.relu1_to_prev": 0.5
             }
         }
     }

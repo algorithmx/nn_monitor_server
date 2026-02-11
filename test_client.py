@@ -59,15 +59,25 @@ def generate_layer_stats(layer_id: str, layer_type: str, depth_index: int,
     }
 
 
-def send_metrics(run_id: str, global_step: int, batch_size: int = 64) -> bool:
-    """Send metrics payload to server"""
+def send_metrics(run_id: str, global_step: int, batch_size: int = 64, use_dots: bool = False) -> bool:
+    """Send metrics payload to server
     
-    # Define model layers
+    Args:
+        run_id: Unique run identifier
+        global_step: Current training step
+        batch_size: Batch size for this step
+        use_dots: If True, use dots in layer IDs (natural user format).
+                  If False, use slashes (sanitized format).
+    """
+    
+    separator = "." if use_dots else "/"
+    
+    # Define model layers with configurable separator
     layers_config = [
-        ("encoder.linear1", "Linear"),
-        ("encoder.relu1", "ReLU"),
-        ("encoder.linear2", "Linear"),
-        ("encoder.relu2", "ReLU"),
+        (f"encoder{separator}linear1", "Linear"),
+        (f"encoder{separator}relu1", "ReLU"),
+        (f"encoder{separator}linear2", "Linear"),
+        (f"encoder{separator}relu2", "ReLU"),
         ("classifier", "Linear")
     ]
     
@@ -95,12 +105,20 @@ def send_metrics(run_id: str, global_step: int, batch_size: int = 64) -> bool:
     stds = [l["intermediate_features"]["activation_std"] for l in layer_statistics]
     feature_std_gradient = (stds[-1] - stds[0]) / len(stds) if len(stds) > 1 else 0.0
     
+    # Layer groups with configurable separator
+    layer_groups = {
+        "encoder": [f"encoder{separator}linear1", f"encoder{separator}relu1", 
+                    f"encoder{separator}linear2", f"encoder{separator}relu2"],
+        "classifier": ["classifier"]
+    }
+    
     payload = {
         "metadata": {
             "run_id": run_id,
             "timestamp": time.time(),
             "global_step": global_step,
-            "batch_size": batch_size
+            "batch_size": batch_size,
+            "layer_groups": layer_groups
         },
         "layer_statistics": layer_statistics,
         "cross_layer_analysis": {
@@ -123,16 +141,26 @@ def send_metrics(run_id: str, global_step: int, batch_size: int = 64) -> bool:
 
 
 def simulate_training(run_id: str = "test_run", num_steps: int = 100, 
-                      interval: float = 1.0):
-    """Simulate a training loop sending metrics"""
+                      interval: float = 1.0, use_dots: bool = False):
+    """Simulate a training loop sending metrics
     
+    Args:
+        run_id: Unique run identifier
+        num_steps: Number of training steps
+        interval: Seconds between metric sends
+        use_dots: If True, use dots in layer IDs (natural user format).
+                  If False, use slashes (sanitized format).
+    """
+    
+    format_type = "dots" if use_dots else "slashes"
     print(f"Starting simulated training: {run_id}")
+    print(f"Layer ID format: {format_type}")
     print(f"Steps: {num_steps}, Interval: {interval}s")
     print(f"Target: {API_ENDPOINT}")
     print("-" * 50)
     
     for step in range(0, num_steps, 10):  # Log every 10 steps
-        send_metrics(run_id, step)
+        send_metrics(run_id, step, use_dots=use_dots)
         time.sleep(interval)
     
     print("-" * 50)
@@ -151,8 +179,11 @@ if __name__ == "__main__":
                        help="Seconds between updates")
     parser.add_argument("--endpoint", default=API_ENDPOINT,
                        help="Server endpoint URL")
+    parser.add_argument("--use-dots", action="store_true",
+                       help="Use dots in layer IDs (natural user format). "
+                            "Without this flag, slashes are used (sanitized format).")
     
     args = parser.parse_args()
     
     API_ENDPOINT = args.endpoint
-    simulate_training(args.run_id, args.steps, args.interval)
+    simulate_training(args.run_id, args.steps, args.interval, args.use_dots)
