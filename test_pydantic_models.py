@@ -465,6 +465,135 @@ def test_nan_infinity():
     return results
 
 
+def test_optional_bias():
+    """Test that bias is optional in ParameterStatistics."""
+    results = []
+
+    # Test 1: ParameterStatistics with bias=None (layer without bias)
+    try:
+        ParameterStatistics(
+            weight=WeightStats(
+                std=0.1,
+                mean=0.0,
+                spectral_norm=1.0,
+                frobenius_norm=1.5
+            ),
+            bias=None  # Optional bias - layer like Conv2d with bias=False
+        )
+        print("✓ ParameterStatistics with bias=None accepted")
+        results.append(True)
+    except ValidationError:
+        print("✗ ParameterStatistics with bias=None REJECTED - bias should be optional")
+        results.append(False)
+
+    # Test 2: LayerStatistic with bias=None
+    try:
+        LayerStatistic(
+            layer_id="conv1_no_bias",
+            layer_type="Conv2d",
+            depth_index=0,
+            intermediate_features=IntermediateFeatures(
+                activation_std=0.5,
+                activation_mean=0.0,
+                activation_shape=[32, 64, 28, 28],
+                cross_layer_std_ratio=None
+            ),
+            gradient_flow=GradientFlow(
+                gradient_l2_norm=0.1,
+                gradient_std=0.01,
+                gradient_max_abs=0.05
+            ),
+            parameter_statistics=ParameterStatistics(
+                weight=WeightStats(
+                    std=0.1,
+                    mean=0.0,
+                    spectral_norm=1.0,
+                    frobenius_norm=1.5
+                ),
+                bias=None
+            )
+        )
+        print("✓ LayerStatistic with bias=None accepted")
+        results.append(True)
+    except ValidationError:
+        print("✗ LayerStatistic with bias=None REJECTED - bias should be optional")
+        results.append(False)
+
+    # Test 3: Full MetricsPayload with layers having and not having bias
+    try:
+        MetricsPayload(
+            metadata=Metadata(
+                run_id="test_optional_bias",
+                timestamp=1707589200.0,
+                global_step=0,
+                batch_size=32
+            ),
+            layer_statistics=[
+                LayerStatistic(
+                    layer_id="conv1_with_bias",
+                    layer_type="Conv2d",
+                    depth_index=0,
+                    intermediate_features=IntermediateFeatures(
+                        activation_std=0.5,
+                        activation_mean=0.0,
+                        activation_shape=[32, 64, 28, 28],
+                        cross_layer_std_ratio=None
+                    ),
+                    gradient_flow=GradientFlow(
+                        gradient_l2_norm=0.1,
+                        gradient_std=0.01,
+                        gradient_max_abs=0.05
+                    ),
+                    parameter_statistics=ParameterStatistics(
+                        weight=WeightStats(
+                            std=0.1,
+                            mean=0.0,
+                            spectral_norm=1.0,
+                            frobenius_norm=1.5
+                        ),
+                        bias=BiasStats(std=0.01, mean_abs=0.005)  # Has bias
+                    )
+                ),
+                LayerStatistic(
+                    layer_id="conv2_no_bias",
+                    layer_type="Conv2d",
+                    depth_index=1,
+                    intermediate_features=IntermediateFeatures(
+                        activation_std=0.4,
+                        activation_mean=0.0,
+                        activation_shape=[32, 128, 14, 14],
+                        cross_layer_std_ratio=None
+                    ),
+                    gradient_flow=GradientFlow(
+                        gradient_l2_norm=0.08,
+                        gradient_std=0.008,
+                        gradient_max_abs=0.04
+                    ),
+                    parameter_statistics=ParameterStatistics(
+                        weight=WeightStats(
+                            std=0.08,
+                            mean=0.0,
+                            spectral_norm=1.2,
+                            frobenius_norm=1.8
+                        ),
+                        bias=None  # No bias
+                    )
+                )
+            ],
+            cross_layer_analysis=CrossLayerAnalysis(
+                feature_std_gradient=-0.1,
+                gradient_norm_ratio={}
+            )
+        )
+        print("✓ Full MetricsPayload with mixed bias/none-bias layers accepted")
+        results.append(True)
+    except ValidationError as e:
+        print(f"✗ Full MetricsPayload with mixed bias/none-bias REJECTED: {e}")
+        results.append(False)
+
+    return results
+
+
 def test_run_id_patterns():
     """Test various run_id patterns."""
     results = []
@@ -568,7 +697,12 @@ def main():
     nan_results = test_nan_infinity()
     print()
 
-    print("5. Testing run_id patterns")
+    print("5. Testing optional bias")
+    print("-" * 70)
+    optional_bias_results = test_optional_bias()
+    print()
+
+    print("6. Testing run_id patterns")
     print("-" * 70)
     pattern_results = test_run_id_patterns()
     print()
@@ -577,13 +711,14 @@ def main():
     print("SUMMARY")
     print("=" * 70)
     total_tests = (
-        1 + len(edge_results) + len(negative_results) + len(nan_results) + len(pattern_results)
+        1 + len(edge_results) + len(negative_results) + len(nan_results) + len(optional_bias_results) + len(pattern_results)
     )
     passed_tests = (
         (1 if spec_result else 0) +
         sum(edge_results) +
         sum(negative_results) +
         sum(nan_results) +
+        sum(optional_bias_results) +
         sum(pattern_results)
     )
     print(f"Passed: {passed_tests}/{total_tests}")
@@ -594,7 +729,7 @@ def main():
         print("⚠ CRITICAL: The spec example payload does not validate!")
         print("  This must be fixed before considering the models complete.")
 
-    return all([spec_result] + edge_results + negative_results + nan_results + pattern_results)
+    return all([spec_result] + edge_results + negative_results + nan_results + optional_bias_results + pattern_results)
 
 
 if __name__ == "__main__":

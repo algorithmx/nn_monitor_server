@@ -114,7 +114,7 @@ Statistics about the layer's learnable parameters (weights and biases).
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `weight` | WeightStats | Yes | Weight statistics |
-| `bias` | BiasStats | Yes | Bias statistics |
+| `bias` | BiasStats | No | Bias statistics (optional - some layers like Conv2d with bias=False don't have bias) |
 
 ##### `weight` (WeightStats)
 
