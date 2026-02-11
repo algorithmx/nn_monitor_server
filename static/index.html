@@ -1575,6 +1575,17 @@
                 else ctx.lineTo(x, y);
             });
             ctx.stroke();
+
+            // Draw y=0 baseline (dashed black line)
+            const zeroY = h - h * 0.1;
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(0, zeroY);
+            ctx.lineTo(w, zeroY);
+            ctx.stroke();
+            ctx.setLineDash([]);
         }
 
         function checkAlerts(step) {
@@ -1717,6 +1728,17 @@
                 else ctx.lineTo(x, y);
             });
             ctx.stroke();
+
+            // Draw y=0 baseline (dashed black line)
+            const zeroY = h - h * 0.1;
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(0, zeroY);
+            ctx.lineTo(w, zeroY);
+            ctx.stroke();
+            ctx.setLineDash([]);
 
             // Draw step labels
             ctx.fillStyle = '#888';
