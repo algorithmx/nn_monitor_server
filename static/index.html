@@ -327,11 +327,11 @@
         /* Layer grid - COMPACT */
         .layers {
             background: var(--bg);
-            padding: 16px;
+            padding: 14px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 16px;
             align-content: start;
         }
 
@@ -339,31 +339,31 @@
         .layer-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 10px;
+            gap: 8px;
             align-content: start;
         }
 
         /* Group header */
         .group-header {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.1em;
             color: var(--text);
-            padding-bottom: 8px;
+            padding-bottom: 6px;
             border-bottom: 1px solid var(--border);
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
 
         .group-section {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
         }
 
         .layer {
             border: 1px solid var(--border);
-            padding: clamp(4px, 1vw, 6px) clamp(3px, 0.8vw, 6px);
+            padding: clamp(3px, 0.8vw, 5px) clamp(3px, 0.8vw, 5px);
             position: relative;
             transition: border-color 0.15s;
             background: var(--surface);
@@ -381,7 +381,7 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: clamp(3px, 0.8vw, 5px);
+            margin-bottom: clamp(2px, 0.6vw, 4px);
             gap: clamp(3px, 0.8vw, 5px);
         }
 
@@ -404,11 +404,11 @@
         /* Pulse visualization - COMPACT */
         .pulse-viz {
             width: 100%;
-            height: clamp(18px, 3.5vw, 26px);
+            height: clamp(28px, 5vw, 40px);
             background: var(--bg);
             position: relative;
             overflow: hidden;
-            margin-bottom: clamp(3px, 1vw, 6px);
+            margin-bottom: clamp(3px, 0.8vw, 5px);
             border-radius: 2px;
             display: block;
         }
@@ -425,7 +425,7 @@
         .metrics {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: clamp(2px, 0.8vw, 5px);
+            gap: clamp(2px, 0.6vw, 4px);
         }
 
         .metric {
@@ -442,7 +442,7 @@
         }
 
         .metric-label {
-            font-size: clamp(10px, 1.5vw, 14px);
+            font-size: clamp(9px, 1.4vw, 12px);
             text-transform: uppercase;
             letter-spacing: 0.05em;
             color: inherit;
