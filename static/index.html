@@ -263,8 +263,10 @@
         /* Main layout */
         main {
             flex: 1;
+            min-height: 0; /* Allow flex child to shrink for proper overflow */
             display: grid;
             grid-template-columns: 220px 1fr;
+            grid-template-rows: 1fr;
             gap: 1px;
             background: var(--border);
         }
@@ -276,7 +278,8 @@
             display: flex;
             flex-direction: column;
             gap: 16px;
-            min-height: 0; /* Allow flex/grid item to shrink below content size for scrolling */
+            min-height: 0; /* Allow grid item to shrink below content size for scrolling */
+            height: 0; /* Explicit height to trigger overflow in grid */
             overflow-y: auto;
         }
 
@@ -335,7 +338,8 @@
             flex-direction: column;
             gap: 16px;
             align-content: start;
-            min-height: 0; /* Allow flex/grid item to shrink below content size for scrolling */
+            min-height: 0; /* Allow grid item to shrink below content size for scrolling */
+            height: 0; /* Explicit height to trigger overflow in grid */
         }
 
         /* Layer grid within groups */
