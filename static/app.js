@@ -419,33 +419,154 @@ function sanitizeLayerId(layerId) {
         .replace(/[^a-zA-Z0-9]/g, '_'); // Other non-alphanumeric become _
 }
 
-function renderLayer(layer) {
+// Format number in scientific notation with fixed width (e.g., "1.23e-4")
+// This ensures all numbers have the same visual width for alignment
+function formatScientific(value, decimals = 2) {
+    if (value === null || value === undefined || isNaN(value)) return '—';
+    if (value === 0) return '0.' + '0'.repeat(decimals) + 'e+0';
+    
+    const exp = Math.floor(Math.log10(Math.abs(value)));
+    const mantissa = value / Math.pow(10, exp);
+    
+    // Format mantissa with fixed decimals
+    const mantissaStr = mantissa.toFixed(decimals);
+    
+    // Format exponent with sign
+    const expSign = exp >= 0 ? '+' : '';
+    const expStr = `e${expSign}${exp}`;
+    
+    return mantissaStr + expStr;
+}
+
+function renderLayer(layer, groupName = null) {
     const health = assessHealth(layer);
+    // Strip group prefix from displayed layer id to avoid redundancy
+    let displayLayerId = layer.layer_id;
+    if (groupName && layer.layer_id.startsWith(groupName + '/')) {
+        displayLayerId = layer.layer_id.slice(groupName.length + 1);
+    }
     return `
         <div class="layer ${health.class}">
             <div class="layer-header">
                 <div>
-                    <div class="layer-name" data-tooltip="Layer identifier: ${layer.layer_id}">${layer.layer_id}</div>
+                    <div class="layer-name" data-tooltip="Layer identifier: ${layer.layer_id}">${displayLayerId}</div>
                     <div class="layer-type" data-tooltip="Layer type: ${layer.layer_type}">${layer.layer_type}</div>
                 </div>
             </div>
             <canvas class="pulse-viz" id="pulse-${sanitizeLayerId(layer.layer_id)}" data-tooltip="Historical trend: Green line = activation std, Purple line = gradient norm"></canvas>
             <div class="metrics">
                 <div class="metric" data-tooltip="Standard deviation of layer activations. Measures the spread/variability of activations.">
-                    <div class="metric-value ${health.act}">${layer.intermediate_features.activation_std.toFixed(4)}</div>
+                    <div class="metric-value ${health.act}">${formatScientific(layer.intermediate_features.activation_std, 2)}</div>
                     <div class="metric-label">act std</div>
                 </div>
                 <div class="metric" data-tooltip="L2 norm of gradients flowing through the layer. Indicates how much weights are being updated. Low values may indicate vanishing gradients.">
-                    <div class="metric-value ${health.grad}">${layer.gradient_flow.gradient_l2_norm.toFixed(4)}</div>
+                    <div class="metric-value ${health.grad}">${formatScientific(layer.gradient_flow.gradient_l2_norm, 2)}</div>
                     <div class="metric-label">grad norm</div>
                 </div>
                 <div class="metric" data-tooltip="Ratio of this layer's activation std to the previous layer's. Shows how signal propagation changes across layers.">
-                    <div class="metric-value ${health.ratio}">${layer.intermediate_features.cross_layer_std_ratio?.toFixed(3) ?? '—'}</div>
+                    <div class="metric-value ${health.ratio}">${formatScientific(layer.intermediate_features.cross_layer_std_ratio, 2)}</div>
                     <div class="metric-label">ratio</div>
                 </div>
             </div>
         </div>
     `;
+}
+
+// Build a tree structure from layer IDs (slash-separated paths)
+// Returns { children: Map, layers: Array } where children is nested groups
+function buildLayerTree(layers, prefix = '') {
+    const tree = { children: new Map(), layers: [] };
+    
+    for (const layer of layers) {
+        const id = layer.layer_id;
+        // Remove prefix if provided (for subgrouping within predefined groups)
+        const relativeId = prefix && id.startsWith(prefix + '/') 
+            ? id.slice(prefix.length + 1) 
+            : id;
+        
+        const parts = relativeId.split('/');
+        
+        if (parts.length === 1) {
+            // This is a leaf layer (no more subgroups)
+            tree.layers.push(layer);
+        } else {
+            // This needs to go into a subgroup
+            const groupName = parts[0];
+            if (!tree.children.has(groupName)) {
+                tree.children.set(groupName, { children: new Map(), layers: [] });
+            }
+            tree.children.get(groupName).layers.push(layer);
+        }
+    }
+    
+    // Recursively build subtrees for children
+    for (const [groupName, subtree] of tree.children) {
+        const prefixForSubtree = prefix ? `${prefix}/${groupName}` : groupName;
+        const rebuiltSubtree = buildLayerTree(subtree.layers, prefixForSubtree);
+        tree.children.set(groupName, rebuiltSubtree);
+    }
+    
+    return tree;
+}
+
+// Global state for collapsed groups (stored as full path strings)
+state.collapsedGroups = new Set();
+
+// Toggle collapse state for a group
+function toggleGroup(groupPath) {
+    if (state.collapsedGroups.has(groupPath)) {
+        state.collapsedGroups.delete(groupPath);
+    } else {
+        state.collapsedGroups.add(groupPath);
+    }
+    // Re-render to apply the change
+    render();
+}
+
+// Recursively render a layer tree into HTML
+// parentPrefix is the accumulated path for display purposes
+// skipFirstLevelHeader: when true, don't show headers for the first level of children
+//   (used when predefined groups already show the top-level grouping)
+function renderLayerTree(tree, parentPrefix = '', skipFirstLevelHeader = false) {
+    let html = '';
+    
+    // First render direct leaf layers
+    if (tree.layers.length > 0) {
+        html += `<div class="layer-grid">`;
+        for (const layer of tree.layers) {
+            html += renderLayer(layer, parentPrefix);
+        }
+        html += `</div>`;
+    }
+    
+    // Then recursively render subgroups
+    // Sort children by name for consistent ordering
+    const sortedChildren = Array.from(tree.children.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    
+    for (const [groupName, subtree] of sortedChildren) {
+        const fullPath = parentPrefix ? `${parentPrefix}/${groupName}` : groupName;
+        
+        if (skipFirstLevelHeader) {
+            // Skip showing this level's header, just render children directly
+            // But we still need to pass the fullPath for layer display prefix
+            html += renderLayerTree(subtree, fullPath, false);
+        } else {
+            const isCollapsed = state.collapsedGroups.has(fullPath);
+            const expandIcon = isCollapsed ? '▶' : '▼';
+            
+            html += `
+                <div class="group-section nested">
+                    <div class="group-header nested expandable" onclick="toggleGroup('${fullPath}')">
+                        <span class="expand-icon">${expandIcon}</span>
+                        <span class="group-name">${groupName}</span>
+                    </div>
+                    ${!isCollapsed ? `<div class="group-content">${renderLayerTree(subtree, fullPath, false)}</div>` : ''}
+                </div>
+            `;
+        }
+    }
+    
+    return html;
 }
 
 function render() {
@@ -486,64 +607,59 @@ function render() {
     const container = document.getElementById('layers');
     const layerGroups = displayStep.layer_groups || null;
 
+    let html = '';
+
     if (layerGroups && Object.keys(layerGroups).length > 0) {
-        // Render with grouping
-        const groupedLayers = {};
-        const ungroupedLayers = [];
-
-        // Initialize all groups
-        Object.keys(layerGroups).forEach(groupName => {
-            groupedLayers[groupName] = [];
-        });
-
-        // Distribute layers into groups
-        displayStep.layers.forEach(layer => {
-            let assigned = false;
-            for (const [groupName, layerIds] of Object.entries(layerGroups)) {
-                if (layerIds.includes(layer.layer_id)) {
-                    groupedLayers[groupName].push(layer);
-                    assigned = true;
-                    break;
-                }
-            }
-            if (!assigned) {
-                ungroupedLayers.push(layer);
-            }
-        });
-
-        // Build HTML with groups
-        let html = '';
-        for (const [groupName, layers] of Object.entries(groupedLayers)) {
-            if (layers.length > 0) {
+        // Render with predefined grouping, then apply recursive subgrouping
+        // Skip first level headers since predefined groups already show them
+        for (const [groupName, layerIds] of Object.entries(layerGroups)) {
+            const groupLayers = displayStep.layers.filter(l => layerIds.includes(l.layer_id));
+            if (groupLayers.length > 0) {
+                // Build tree for this group's layers to enable recursive subgrouping
+                const tree = buildLayerTree(groupLayers);
+                const fullPath = `__predef__${groupName}`;
+                const isCollapsed = state.collapsedGroups.has(fullPath);
+                const expandIcon = isCollapsed ? '▶' : '▼';
                 html += `
                     <div class="group-section">
-                        <div class="group-header">${groupName}</div>
-                        <div class="layer-grid">
-                            ${layers.map(layer => renderLayer(layer)).join('')}
+                        <div class="group-header expandable" onclick="toggleGroup('${fullPath}')">
+                            <span class="expand-icon">${expandIcon}</span>
+                            <span class="group-name">${groupName}</span>
                         </div>
+                        ${!isCollapsed ? `<div class="group-content">${renderLayerTree(tree, groupName, true)}</div>` : ''}
                     </div>
                 `;
             }
         }
-
-        // Add ungrouped layers if any
+        
+        // Handle ungrouped layers - don't skip first level since there's no predefined header
+        const groupedLayerIds = new Set();
+        Object.values(layerGroups).forEach(ids => ids.forEach(id => groupedLayerIds.add(id)));
+        const ungroupedLayers = displayStep.layers.filter(l => !groupedLayerIds.has(l.layer_id));
+        
         if (ungroupedLayers.length > 0) {
+            const tree = buildLayerTree(ungroupedLayers);
+            const fullPath = '__predef__Ungrouped';
+            const isCollapsed = state.collapsedGroups.has(fullPath);
+            const expandIcon = isCollapsed ? '▶' : '▼';
             html += `
                 <div class="group-section">
-                    <div class="group-header">Ungrouped</div>
-                    <div class="layer-grid">
-                        ${ungroupedLayers.map(layer => renderLayer(layer)).join('')}
+                    <div class="group-header expandable" onclick="toggleGroup('${fullPath}')">
+                        <span class="expand-icon">${expandIcon}</span>
+                        <span class="group-name">Ungrouped</span>
                     </div>
+                    ${!isCollapsed ? `<div class="group-content">${renderLayerTree(tree, '', false)}</div>` : ''}
                 </div>
             `;
         }
-
-        container.innerHTML = html;
     } else {
-        // Render without grouping (flat grid)
-        container.className = 'layers';
-        container.innerHTML = `<div class="layer-grid">${displayStep.layers.map(layer => renderLayer(layer)).join('')}</div>`;
+        // No predefined groups - apply recursive grouping based on layer_id paths
+        // Show all levels including top-level since there's no predefined grouping
+        const tree = buildLayerTree(displayStep.layers);
+        html = renderLayerTree(tree, '', false);
     }
+
+    container.innerHTML = html;
 
     // Draw pulse lines with historical context
     displayStep.layers.forEach(layer => {
@@ -624,9 +740,11 @@ function drawPulse(layerId, currentStep) {
 
     ctx.clearRect(0, 0, w, h);
 
-    // Find min/max for scaling - activation and gradient scale independently
+    // Find min/max for scaling based on recent 50 data points
+    // This makes the visualization more responsive to recent changes
+    const recentHistory = pulseHistory.slice(-50);
     let maxAct = 0, maxGrad = 0;
-    pulseHistory.forEach(pt => {
+    recentHistory.forEach(pt => {
         maxAct = Math.max(maxAct, pt.actStd);
         maxGrad = Math.max(maxGrad, pt.gradNorm);
     });
@@ -709,14 +827,21 @@ function drawPulse(layerId, currentStep) {
     }
 }
 
-// Helper function to format values concisely
+// Helper function to format values for Y-axis ticks in scientific notation
 function formatValue(val) {
-    if (val >= 1000) return (val / 1000).toFixed(1) + 'k';
-    if (val >= 100) return val.toFixed(0);
-    if (val >= 10) return val.toFixed(1);
-    if (val >= 1) return val.toFixed(2);
-    if (val >= 0.01) return val.toFixed(3);
-    return val.toExponential(1);
+    if (val === 0) return '0.0e+0';
+    
+    const exp = Math.floor(Math.log10(Math.abs(val)));
+    const mantissa = val / Math.pow(10, exp);
+    
+    // Format mantissa with 1 decimal place for compact display
+    const mantissaStr = mantissa.toFixed(1);
+    
+    // Format exponent with sign
+    const expSign = exp >= 0 ? '+' : '';
+    const expStr = `e${expSign}${exp}`;
+    
+    return mantissaStr + expStr;
 }
 
 function checkAlerts(step) {
@@ -809,9 +934,9 @@ function drawModalPulse() {
     const w = rect.width;
     const h = rect.height;
 
-    // Define padding for axes
+    // Define padding for axes - increased right padding for scientific notation labels
     const leftPadding = 50;
-    const rightPadding = 50;
+    const rightPadding = 65;
     const bottomPadding = 25;
     const topPadding = 10;
 
@@ -822,9 +947,11 @@ function drawModalPulse() {
 
     ctx.clearRect(0, 0, w, h);
 
-    // Find min/max for scaling - activation and gradient scale independently
+    // Find min/max for scaling based on recent 50 data points
+    // This makes the visualization more responsive to recent changes
+    const recentHistory = pulseHistory.slice(-50);
     let maxAct = 0, maxGrad = 0;
-    pulseHistory.forEach(pt => {
+    recentHistory.forEach(pt => {
         maxAct = Math.max(maxAct, pt.actStd);
         maxGrad = Math.max(maxGrad, pt.gradNorm);
     });
