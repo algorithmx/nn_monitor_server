@@ -33,7 +33,7 @@ class ServerConfig(BaseSettings):
     max_request_size: int = Field(default=2_000_000, ge=100_000, description="Maximum request size in bytes")
     host: str = Field(default="0.0.0.0", description="Server host")
     port: int = Field(default=8000, ge=1, le=65535, description="Server port")
-    log_level: str = Field(default="info", description="Log level")
+    log_level: str = Field(default="warning", description="Log level")
     cors_origins: List[str] = Field(default=["*"], description="CORS allowed origins")
 
 
