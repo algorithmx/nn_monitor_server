@@ -16,6 +16,57 @@ import math
 import os
 
 
+# ==================== WebSocket Payload Helpers ====================
+
+def _compact_layer(layer: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a minimal layer representation needed by the dashboard.
+
+    This is used only for opt-in WebSocket payloads to keep run switching fast.
+    """
+    intermediate = layer.get("intermediate_features") or {}
+    gradient = layer.get("gradient_flow") or {}
+
+    return {
+        "layer_id": layer.get("layer_id"),
+        "layer_type": layer.get("layer_type"),
+        "depth_index": layer.get("depth_index"),
+        "intermediate_features": {
+            "activation_std": intermediate.get("activation_std", 0),
+            "cross_layer_std_ratio": intermediate.get("cross_layer_std_ratio"),
+        },
+        "gradient_flow": {
+            "gradient_l2_norm": gradient.get("gradient_l2_norm", 0),
+            "gradient_max_abs": gradient.get("gradient_max_abs", 0),
+        },
+    }
+
+
+def _compact_step(step: "StepData") -> Dict[str, Any]:
+    """Return a minimal step representation needed by the dashboard."""
+    layers: List[Dict[str, Any]] = []
+    for layer in step.layers:
+        # step.layers is stored as a list[dict]
+        if isinstance(layer, dict):
+            layers.append(_compact_layer(layer))
+    return {
+        "step": step.step,
+        "timestamp": step.timestamp,
+        "batch_size": step.batch_size,
+        "layers": layers,
+        "cross_layer": step.cross_layer,
+        "layer_groups": step.layer_groups,
+    }
+
+
+def _compact_run(run: "RunData") -> Dict[str, Any]:
+    """Return a minimal run representation needed by the dashboard."""
+    return {
+        "created_at": run.created_at,
+        "last_update": run.last_update,
+        "steps": [_compact_step(step) for step in run.steps],
+    }
+
+
 # ==================== Configuration ====================
 
 class ServerConfig(BaseSettings):
@@ -493,10 +544,11 @@ async def websocket_endpoint(websocket: WebSocket):
                     run_id = data.get('run_id')
                     run = await store.get_run(run_id)
                     if run:
+                        lite = bool(data.get('lite'))
                         await websocket.send_json({
                             'type': 'run_history',
                             'run_id': run_id,
-                            'data': run.model_dump()
+                            'data': _compact_run(run) if lite else run.model_dump()
                         })
                     else:
                         await websocket.send_json({
@@ -545,4 +597,17 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
+    
+    print("=" * 50)
+    print("NN Training Monitor Server")
+    print("=" * 50)
+    print(f"Server started successfully!")
+    print(f"Host: {config.host}")
+    print(f"Port: {config.port}")
+    print(f"Access URL: http://{config.host if config.host != '0.0.0.0' else 'localhost'}:{config.port}")
+    print(f"WebSocket endpoint: ws://{config.host if config.host != '0.0.0.0' else 'localhost'}:{config.port}/ws")
+    print(f"Max concurrent runs: {config.max_runs}")
+    print(f"Max steps per run: {config.max_steps_per_run}")
+    print("=" * 50)
+    
     uvicorn.run(app, host=config.host, port=config.port, log_level=config.log_level)

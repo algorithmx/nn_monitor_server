@@ -139,8 +139,27 @@ function handleMessage(msg) {
                 state.runs[msg.run_id].step_count = state.runData.steps.length;
                 updateSelect();
             }
+
+            // Sync navigation state + render immediately after history loads
+            updateStepsList();
+            updateHistoryUI();
+            render();
             break;
     }
+}
+
+function downsampleHistory(history, maxPoints) {
+    if (!Array.isArray(history)) return [];
+    if (history.length <= maxPoints) return history;
+    if (maxPoints <= 2) return [history[0], history[history.length - 1]];
+
+    const sampled = [];
+    const lastIdx = history.length - 1;
+    for (let i = 0; i < maxPoints; i++) {
+        const idx = Math.round((i * lastIdx) / (maxPoints - 1));
+        sampled.push(history[idx]);
+    }
+    return sampled;
 }
 
 function updateSelect() {
@@ -176,7 +195,8 @@ function selectRun(id) {
     // Safely check WebSocket state before sending
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
         try {
-            state.ws.send(JSON.stringify({ action: 'subscribe_run', run_id: id }));
+            // Request a lightweight history payload for fast run switching
+            state.ws.send(JSON.stringify({ action: 'subscribe_run', run_id: id, lite: true }));
         } catch (err) {
             console.error('Failed to send subscribe_run message:', err);
         }
@@ -738,6 +758,10 @@ function drawPulse(layerId, currentStep) {
     const w = rect.width;
     const h = rect.height;
 
+    // Downsample to ~1 point per pixel for fast rendering on long histories
+    const maxPoints = Math.max(50, Math.floor(w));
+    pulseHistory = downsampleHistory(pulseHistory, maxPoints);
+
     ctx.clearRect(0, 0, w, h);
 
     // Find min/max for scaling based on recent 50 data points
@@ -944,6 +968,10 @@ function drawModalPulse() {
     const plotH = h - topPadding - bottomPadding;
     const plotX = leftPadding;
     const plotY = topPadding;
+
+    // Downsample for modal too (modal is larger but can still be heavy)
+    const modalMaxPoints = Math.max(200, Math.floor(plotW));
+    pulseHistory = downsampleHistory(pulseHistory, modalMaxPoints);
 
     ctx.clearRect(0, 0, w, h);
 
