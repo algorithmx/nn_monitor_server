@@ -20,4 +20,4 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = "0.4"
 
 [dev-dependencies]
-axum-test = "16"
+axum-test = "17"
