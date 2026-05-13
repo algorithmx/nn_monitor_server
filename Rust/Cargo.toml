@@ -1,0 +1,23 @@
+[package]
+name = "nn_monitor_server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs", "cors", "trace", "timeout"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+validator = { version = "0.18", features = ["derive"] }
+dotenvy = "0.15"
+envy = "0.4"
+futures-util = "0.3"
+tokio-util = { version = "0.7", features = ["rt"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+chrono = "0.4"
+
+[dev-dependencies]
+axum-test = "16"

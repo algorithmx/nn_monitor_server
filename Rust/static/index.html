@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>nn_monitor</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <header>
+        <div class="brand">nn_monitor</div>
+        <div class="status">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">connecting</span>
+            <button class="btn-settings" id="btnSettings" data-tooltip="Open configuration panel" style="margin-left: 12px;">⚙</button>
+        </div>
+    </header>
+
+    <div class="history-controls">
+        <div class="mode-badge live" id="modeBadge" data-tooltip="Live mode shows real-time updates. Paused mode lets you browse historical steps.">
+            <span class="badge-dot"></span>
+            <span id="modeText">Live</span>
+        </div>
+
+        <button class="btn-live live-active" id="btnLivePause" data-tooltip="Toggle between live and paused mode">⏸ Pause</button>
+
+        <div class="nav-controls" id="navControls" style="opacity: 0.3; pointer-events: none;">
+            <button class="nav-btn" id="btnFirst" data-tooltip="Jump to the first recorded step">⏮</button>
+            <button class="nav-btn" id="btnPrev" data-tooltip="Go to previous step">◀</button>
+            <button class="nav-btn" id="btnNext" data-tooltip="Go to next step">▶</button>
+            <button class="nav-btn" id="btnLast" data-tooltip="Jump to the latest step">⏭</button>
+        </div>
+
+        <div class="step-slider-container">
+            <input type="range" class="step-slider" id="stepSlider" min="0" max="100" value="0" disabled data-tooltip="Drag to navigate through training history">
+            <span class="step-display" id="stepDisplay">—</span>
+        </div>
+    </div>
+
+    <main>
+        <aside>
+            <div class="control">
+                <label>Run</label>
+                <select id="runSelect">
+                    <option value="">select run...</option>
+                </select>
+            </div>
+
+            <div class="alerts-scroll-container">
+                <div class="alerts" id="alerts"></div>
+            </div>
+
+            <div class="summary">
+                <div class="summary-item" data-tooltip="Current training step number being displayed">
+                    <span>step</span>
+                    <span class="value" id="stepVal">—</span>
+                </div>
+                <div class="summary-item" data-tooltip="Number of layers in the monitored model">
+                    <span>layers</span>
+                    <span class="value" id="layerVal">—</span>
+                </div>
+                <div class="summary-item" data-tooltip="Last time this data was updated">
+                    <span>updated</span>
+                    <span class="value" id="timeVal">—</span>
+                </div>
+            </div>
+        </aside>
+
+        <div class="layers" id="layers">
+            <div class="empty">awaiting data...</div>
+        </div>
+    </main>
+
+    <!-- Configuration panel -->
+    <div class="config-overlay" id="configPanel">
+        <div class="config-panel">
+            <div class="config-header">
+                <div class="config-title">Settings</div>
+                <button class="config-close" id="configClose">&times;</button>
+            </div>
+            <div class="config-section">
+                <div class="config-section-title">Visualization</div>
+                <div class="config-item">
+                    <div class="config-item-label">
+                        <span>Gradient Norm Scale</span>
+                        <span class="config-item-value" id="gradScaleValue">1.0x</span>
+                    </div>
+                    <input type="range" class="config-range" id="gradScaleSlider" min="0.1" max="10" step="0.1" value="1">
+                    <div class="config-description">Vertical scaling for gradient norm line in pulse plots. Increase to see smaller gradient values more clearly.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for zoomed pulse visualization -->
+    <div class="modal-overlay" id="pulseModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">Layer Pulse Visualization</div>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-canvas-container">
+                    <canvas id="modalCanvas"></canvas>
+                </div>
+                <div class="modal-legend">
+                    <div class="legend-item">
+                        <div class="legend-color act"></div>
+                        <span>Activation Std</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color grad"></div>
+                        <span>Gradient Norm</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
