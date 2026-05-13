@@ -1,7 +1,7 @@
 mod config;
 mod models;
-// mod store;    // TODO: Task 5
-// mod ws;       // TODO: Task 6
+mod store;
+mod ws;
 // mod routes;   // TODO: Task 7
 
 fn main() {

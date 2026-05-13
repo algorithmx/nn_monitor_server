@@ -104,7 +104,7 @@ pub struct Metadata {
     pub layer_groups: Option<std::collections::HashMap<String, Vec<String>>>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntermediateFeatures {
     pub activation_std: NonNegativeF64,
     pub activation_mean: FiniteF64,
@@ -112,14 +112,14 @@ pub struct IntermediateFeatures {
     pub cross_layer_std_ratio: Option<NonNegativeF64>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GradientFlow {
     pub gradient_l2_norm: NonNegativeF64,
     pub gradient_std: NonNegativeF64,
     pub gradient_max_abs: NonNegativeF64,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WeightStats {
     pub std: NonNegativeF64,
     pub mean: FiniteF64,
@@ -127,19 +127,19 @@ pub struct WeightStats {
     pub frobenius_norm: NonNegativeF64,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BiasStats {
     pub std: NonNegativeF64,
     pub mean_abs: NonNegativeF64,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParameterStatistics {
     pub weight: WeightStats,
     pub bias: Option<BiasStats>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LayerStatistic {
     pub layer_id: String,
     pub layer_type: String,
@@ -149,7 +149,7 @@ pub struct LayerStatistic {
     pub parameter_statistics: ParameterStatistics,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CrossLayerAnalysis {
     pub feature_std_gradient: FiniteF64,
     pub gradient_norm_ratio: std::collections::HashMap<String, f64>,
