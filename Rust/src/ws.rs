@@ -17,6 +17,12 @@ pub struct WsManager {
     connections: AtomicU32,
 }
 
+impl Default for WsManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WsManager {
     pub fn new() -> Self {
         let (tx, _) = broadcast::channel(1024);
