@@ -41,8 +41,8 @@ impl WsManager {
     ///
     /// Silently drops the message when no receivers exist.
     /// Logs a warning when a receiver is lagging (slow client).
-    pub fn broadcast(&self, message: &str) {
-        match self.tx.send(message.to_string()) {
+    pub fn broadcast(&self, message: String) {
+        match self.tx.send(message) {
             Ok(_n) => {}
             Err(broadcast::error::SendError(_msg)) => {
                 // No active receivers — message dropped, this is fine.
@@ -240,14 +240,14 @@ mod tests {
     fn test_broadcast_no_receivers() {
         let mgr = WsManager::new();
         // Should not panic with no receivers
-        mgr.broadcast("hello");
+        mgr.broadcast("hello".to_string());
     }
 
     #[test]
     fn test_broadcast_with_receiver() {
         let mgr = WsManager::new();
         let mut rx = mgr.subscribe();
-        mgr.broadcast("hello");
+        mgr.broadcast("hello".to_string());
         let msg = rx.try_recv().unwrap();
         assert_eq!(msg, "hello");
     }

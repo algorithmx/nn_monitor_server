@@ -149,20 +149,20 @@ async fn test_run_eviction_oldest_by_last_update() {
     // Add 3 runs with distinct timestamps
     for i in 0..3u64 {
         let json = valid_payload_with(&format!("run{}", i), i);
-        let payload: MetricsPayload = serde_json::from_value(json.clone()).unwrap();
-        store.add_metrics(payload, json).await;
+        let payload: MetricsPayload = serde_json::from_value(json).unwrap();
+        store.add_metrics(payload).await;
         tokio::time::sleep(Duration::from_millis(15)).await;
     }
 
     // Update run0 so it becomes the newest by last_update
     let json = valid_payload_with("run0", 999);
-    let payload: MetricsPayload = serde_json::from_value(json.clone()).unwrap();
-    store.add_metrics(payload, json).await;
+    let payload: MetricsPayload = serde_json::from_value(json).unwrap();
+    store.add_metrics(payload).await;
 
     // Add run3 — should evict run1 (oldest last_update), NOT run0 (just updated)
     let json = valid_payload_with("run3", 0);
-    let payload: MetricsPayload = serde_json::from_value(json.clone()).unwrap();
-    store.add_metrics(payload, json).await;
+    let payload: MetricsPayload = serde_json::from_value(json).unwrap();
+    store.add_metrics(payload).await;
 
     assert!(
         store.get_run("run0").await.is_some(),
