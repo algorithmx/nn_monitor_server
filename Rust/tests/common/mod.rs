@@ -26,6 +26,8 @@ pub fn build_test_app() -> Router {
             port: 8000,
             log_level: "warning".to_string(),
             cors_origins: vec!["*".to_string()],
+            data_dir: "./data".to_string(),
+            flush_timeout_secs: 300,
         },
     };
     Router::new()

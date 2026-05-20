@@ -1,6 +1,7 @@
 mod config;
 mod ingest;
 mod models;
+mod persist;
 mod routes;
 mod store;
 mod ws;
@@ -24,11 +25,16 @@ async fn serve_index() -> impl IntoResponse {
     }
 }
 
-async fn shutdown_signal() {
+async fn shutdown_signal(jsonl_store: Arc<persist::JsonlStore>) {
     tokio::signal::ctrl_c()
         .await
         .expect("Failed to install Ctrl+C handler");
     println!("\nShutting down gracefully...");
+    println!("Flushing buffered data...");
+    if let Err(e) = jsonl_store.flush_all().await {
+        tracing::error!("Failed to flush all buffers: {}", e);
+    }
+    println!("Flush complete.");
 }
 
 #[tokio::main]
@@ -41,10 +47,18 @@ async fn main() {
         )
         .init();
 
-    let store = Arc::new(store::MetricsStore::new(
-        config.max_runs,
-        config.max_steps_per_run,
-    ));
+    let jsonl_store = Arc::new(
+        persist::JsonlStore::new(
+            std::path::PathBuf::from(&config.data_dir),
+            std::time::Duration::from_secs(config.flush_timeout_secs),
+        )
+        .await,
+    );
+    let _flush_task = jsonl_store.start_flush_task();
+    let store = Arc::new(
+        store::MetricsStore::new(config.max_runs, config.max_steps_per_run)
+            .with_persist(Arc::clone(&jsonl_store)),
+    );
     let ws_manager = Arc::new(ws::WsManager::new());
     let (ingest_tx, ingest_rx, ingest_stats) = ingest::channel(config.ingest_queue_size);
     let _ingest_worker = ingest::spawn_worker(
@@ -100,6 +114,8 @@ async fn main() {
     );
     println!("Max concurrent runs: {}", config.max_runs);
     println!("Max steps per run: {}", config.max_steps_per_run);
+    println!("Data directory: {}", config.data_dir);
+    println!("Flush timeout: {}s", config.flush_timeout_secs);
     println!("Ingest queue size: {}", config.ingest_queue_size);
     println!("{}", "=".repeat(50));
 
@@ -108,7 +124,7 @@ async fn main() {
         .expect("Failed to bind address");
 
     axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(shutdown_signal(jsonl_store))
         .await
         .expect("Server error");
 }

@@ -1,11 +1,12 @@
 use std::borrow::Cow;
-use std::collections::HashMap as StdHashMap;
+use std::collections::{HashMap as StdHashMap, HashSet};
+use std::sync::Arc;
 
 use chrono::Local;
 use hashbrown::HashMap;
 use serde::ser::{SerializeMap, Serializer};
 use serde::Serialize;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::models::{LayerStatistic, MetricsPayload, RunData, RunInfo, StepData};
 
@@ -28,6 +29,8 @@ pub struct MetricsStore {
     state: RwLock<StoreState>,
     max_runs: usize,
     max_steps_per_run: usize,
+    persist: Option<Arc<crate::persist::JsonlStore>>,
+    loading: Arc<Mutex<HashSet<String>>>,
 }
 
 struct StoreState {
@@ -140,13 +143,35 @@ fn serialize_initial_runs_message(runs: &HashMap<String, RunData>) -> String {
     serde_json::to_string(&msg).expect("initial_runs serialization should never fail")
 }
 
+#[derive(Serialize)]
+struct OwnedRunInfo {
+    created_at: String,
+    last_update: String,
+    step_count: u32,
+    latest_step: Option<u64>,
+}
+
+#[derive(Serialize)]
+struct OwnedInitialRunsMessage {
+    #[serde(rename = "type")]
+    message_type: &'static str,
+    data: StdHashMap<String, OwnedRunInfo>,
+}
+
 impl MetricsStore {
     pub fn new(max_runs: usize, max_steps_per_run: usize) -> Self {
         Self {
             state: RwLock::new(StoreState::new()),
             max_runs,
             max_steps_per_run,
+            persist: None,
+            loading: Arc::new(Mutex::new(HashSet::new())),
         }
+    }
+
+    pub fn with_persist(mut self, persist: Arc<crate::persist::JsonlStore>) -> Self {
+        self.persist = Some(persist);
+        self
     }
 
     pub async fn add_metrics(&self, payload: MetricsPayload) -> StepData {
@@ -177,58 +202,101 @@ impl MetricsStore {
     }
 
     async fn insert_step_data(&self, run_id: String, step_data: StepData) {
-        let mut state = self.state.write().await;
+        // Clone for persist before step_data is consumed
+        let step_data_for_persist = step_data.clone();
 
-        let is_new_run = !state.runs.contains_key(&run_id);
+        {
+            let mut state = self.state.write().await;
 
-        if is_new_run && state.runs.len() >= self.max_runs {
-            if let Some(oldest_key) = state
-                .runs
-                .iter()
-                .min_by_key(|(_, run)| run.last_update.as_str())
-                .map(|(k, _)| k.clone())
-            {
-                state.runs.remove(&oldest_key);
-                state.remove_run_cache(&oldest_key);
+            let is_new_run = !state.runs.contains_key(&run_id);
+
+            if is_new_run && state.runs.len() >= self.max_runs {
+                if let Some(oldest_key) = state
+                    .runs
+                    .iter()
+                    .min_by_key(|(_, run)| run.last_update.as_str())
+                    .map(|(k, _)| k.clone())
+                {
+                    state.runs.remove(&oldest_key);
+                    state.remove_run_cache(&oldest_key);
+                }
             }
+
+            if is_new_run {
+                let now = now_iso();
+                state.runs.insert(
+                    run_id.clone(),
+                    RunData {
+                        created_at: now.clone(),
+                        last_update: now,
+                        steps: Vec::new(),
+                    },
+                );
+            }
+
+            let run = state.runs.get_mut(&run_id).expect("run was just inserted");
+
+            let step = step_data.step;
+            match run.steps.binary_search_by_key(&step, |s| s.step) {
+                Ok(idx) => run.steps[idx] = step_data,
+                Err(idx) => run.steps.insert(idx, step_data),
+            }
+
+            if run.steps.len() > self.max_steps_per_run {
+                let excess = run.steps.len() - self.max_steps_per_run;
+                run.steps.drain(0..excess);
+            }
+
+            if !is_new_run {
+                run.last_update = now_iso();
+            }
+
+            state.refresh_run_cache(&run_id);
+            state.refresh_summary_cache();
+        } // write lock dropped here
+
+        // Buffer to persist layer (after releasing state lock)
+        if let Some(ref jsonl_store) = self.persist {
+            let _ = jsonl_store.buffer_step(&run_id, &step_data_for_persist).await;
         }
-
-        if is_new_run {
-            let now = now_iso();
-            state.runs.insert(
-                run_id.clone(),
-                RunData {
-                    created_at: now.clone(),
-                    last_update: now,
-                    steps: Vec::new(),
-                },
-            );
-        }
-
-        let run = state.runs.get_mut(&run_id).expect("run was just inserted");
-
-        let step = step_data.step;
-        match run.steps.binary_search_by_key(&step, |s| s.step) {
-            Ok(idx) => run.steps[idx] = step_data,
-            Err(idx) => run.steps.insert(idx, step_data),
-        }
-
-        if run.steps.len() > self.max_steps_per_run {
-            let excess = run.steps.len() - self.max_steps_per_run;
-            run.steps.drain(0..excess);
-        }
-
-        if !is_new_run {
-            run.last_update = now_iso();
-        }
-
-        state.refresh_run_cache(&run_id);
-        state.refresh_summary_cache();
     }
 
     pub async fn get_run(&self, run_id: &str) -> Option<RunData> {
-        let state = self.state.read().await;
-        state.runs.get(run_id).cloned()
+        {
+            let state = self.state.read().await;
+            if let Some(run) = state.runs.get(run_id) {
+                if !run.steps.is_empty() || self.persist.is_none() {
+                    return Some(run.clone());
+                }
+            }
+        }
+
+        if let Some(ref jsonl_store) = self.persist {
+            {
+                let mut loading = self.loading.lock().await;
+                if loading.contains(run_id) {
+                    return None;
+                }
+                loading.insert(run_id.to_string());
+            }
+
+            let result = jsonl_store.load_run(run_id, self.max_steps_per_run).await;
+
+            {
+                let mut loading = self.loading.lock().await;
+                loading.remove(run_id);
+            }
+
+            if let Ok(Some(run_data)) = result {
+                let mut state = self.state.write().await;
+                state.runs.insert(run_id.to_string(), run_data.clone());
+                state.refresh_run_cache(run_id);
+                state.refresh_summary_cache();
+                return Some(run_data);
+            }
+        }
+
+        None
     }
 
     pub async fn get_run_json(&self, run_id: &str) -> Option<String> {
@@ -237,30 +305,28 @@ impl MetricsStore {
             if let Some(cached) = state.run_json.get(run_id) {
                 return Some(cached.clone());
             }
-            if !state.runs.contains_key(run_id) {
-                return None;
-            }
         }
 
+        // Try get_run which handles lazy-loading from persist
+        let run_data = self.get_run(run_id).await?;
+
         let mut state = self.state.write().await;
+        // Double-check cache after acquiring write lock
         if let Some(cached) = state.run_json.get(run_id) {
             return Some(cached.clone());
         }
-        let body = {
-            let run = state.runs.get(run_id)?;
-            serde_json::to_string(run).expect("RunData serialization should never fail")
-        };
+        let body = serde_json::to_string(&run_data).expect("RunData serialization should never fail");
         state.run_json.insert(run_id.to_string(), body.clone());
         Some(body)
     }
 
     pub async fn get_all_runs(&self) -> StdHashMap<String, RunInfo> {
-        let state = self.state.read().await;
-        state
-            .runs
-            .iter()
-            .map(|(run_id, run)| {
-                (
+        let mut combined: StdHashMap<String, RunInfo> = StdHashMap::new();
+
+        {
+            let state = self.state.read().await;
+            for (run_id, run) in &state.runs {
+                combined.insert(
                     run_id.clone(),
                     RunInfo {
                         created_at: run.created_at.clone(),
@@ -268,14 +334,61 @@ impl MetricsStore {
                         step_count: run.steps.len() as u32,
                         latest_step: run.steps.last().map(|s| s.step),
                     },
-                )
-            })
-            .collect()
+                );
+            }
+        }
+
+        if let Some(ref jsonl_store) = self.persist {
+            let disk_runs = jsonl_store.scan_metadata().await;
+            for meta in disk_runs {
+                combined.entry(meta.run_id).or_insert(RunInfo {
+                    created_at: meta.created_at,
+                    last_update: meta.last_update,
+                    step_count: meta.step_count,
+                    latest_step: meta.latest_step,
+                });
+            }
+        }
+
+        combined
     }
 
     pub async fn get_all_runs_json(&self) -> String {
-        let state = self.state.read().await;
-        state.runs_json.clone()
+        if self.persist.is_none() {
+            let state = self.state.read().await;
+            return state.runs_json.clone();
+        }
+
+        let mut combined: StdHashMap<String, RunInfo> = StdHashMap::new();
+
+        {
+            let state = self.state.read().await;
+            for (run_id, run) in &state.runs {
+                combined.insert(
+                    run_id.clone(),
+                    RunInfo {
+                        created_at: run.created_at.clone(),
+                        last_update: run.last_update.clone(),
+                        step_count: run.steps.len() as u32,
+                        latest_step: run.steps.last().map(|s| s.step),
+                    },
+                );
+            }
+        }
+
+        if let Some(ref jsonl_store) = self.persist {
+            let disk_runs = jsonl_store.scan_metadata().await;
+            for meta in disk_runs {
+                combined.entry(meta.run_id).or_insert(RunInfo {
+                    created_at: meta.created_at,
+                    last_update: meta.last_update,
+                    step_count: meta.step_count,
+                    latest_step: meta.latest_step,
+                });
+            }
+        }
+
+        serde_json::to_string(&combined).expect("run summaries serialization should never fail")
     }
 
     pub async fn get_latest_step(&self, run_id: &str) -> Option<StepData> {
@@ -287,13 +400,60 @@ impl MetricsStore {
     }
 
     pub async fn get_latest_step_json(&self, run_id: &str) -> Option<String> {
+        {
+            let state = self.state.read().await;
+            if let Some(cached) = state.latest_step_json.get(run_id) {
+                return Some(cached.clone());
+            }
+        }
+
+        // Trigger lazy-load from persist if needed (populates cache via refresh_run_cache)
+        let _run_data = self.get_run(run_id).await?;
+
         let state = self.state.read().await;
         state.latest_step_json.get(run_id).cloned()
     }
 
     pub async fn build_initial_runs_message(&self) -> String {
-        let state = self.state.read().await;
-        state.initial_runs_message.clone()
+        if self.persist.is_none() {
+            let state = self.state.read().await;
+            return state.initial_runs_message.clone();
+        }
+
+        let mut combined: StdHashMap<String, OwnedRunInfo> = StdHashMap::new();
+
+        {
+            let state = self.state.read().await;
+            for (run_id, run) in &state.runs {
+                combined.insert(
+                    run_id.clone(),
+                    OwnedRunInfo {
+                        created_at: run.created_at.clone(),
+                        last_update: run.last_update.clone(),
+                        step_count: run.steps.len() as u32,
+                        latest_step: run.steps.last().map(|s| s.step),
+                    },
+                );
+            }
+        }
+
+        if let Some(ref jsonl_store) = self.persist {
+            let disk_runs = jsonl_store.scan_metadata().await;
+            for meta in disk_runs {
+                combined.entry(meta.run_id).or_insert(OwnedRunInfo {
+                    created_at: meta.created_at,
+                    last_update: meta.last_update,
+                    step_count: meta.step_count,
+                    latest_step: meta.latest_step,
+                });
+            }
+        }
+
+        let msg = OwnedInitialRunsMessage {
+            message_type: "initial_runs",
+            data: combined,
+        };
+        serde_json::to_string(&msg).expect("initial_runs serialization should never fail")
     }
 
     pub async fn build_run_history_message(&self, run_id: &str, lite: bool) -> Option<String> {
@@ -307,9 +467,11 @@ impl MetricsStore {
             if let Some(cached) = cached {
                 return Some(cached.clone());
             }
-            if !state.runs.contains_key(run_id) {
-                return None;
-            }
+        }
+
+        // Trigger lazy-load from persist if needed
+        if self.get_run(run_id).await.is_none() {
+            return None;
         }
 
         let mut state = self.state.write().await;
@@ -1183,5 +1345,110 @@ mod tests {
             num_tasks,
             "total run count should match number of concurrent tasks"
         );
+    }
+
+    #[tokio::test]
+    async fn test_lazy_load_from_jsonl() {
+        let dir = std::env::temp_dir().join(format!(
+            "nn_monitor_test_lazyload_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let jsonl_store = Arc::new(
+            crate::persist::JsonlStore::new(dir.clone(), std::time::Duration::from_secs(60)).await,
+        );
+        let max_runs = 5;
+        let store = MetricsStore::new(max_runs, 1000).with_persist(Arc::clone(&jsonl_store));
+
+        let p = make_payload("target_run", 42);
+        store.add_metrics(p).await;
+        jsonl_store.flush_run("target_run").await.unwrap();
+
+        for i in 0..max_runs {
+            let p = make_payload(&format!("evictor_{}", i), i as u64);
+            store.add_metrics(p).await;
+            tokio::time::sleep(std::time::Duration::from_millis(15)).await;
+        }
+
+        let run = store.get_run("target_run").await.expect("should lazy-load from disk");
+        assert_eq!(run.steps.len(), 1, "lazy-loaded run should have 1 step");
+        assert_eq!(run.steps[0].step, 42);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_lazy_load_dedup() {
+        let dir = std::env::temp_dir().join(format!(
+            "nn_monitor_test_concurrent_lazy_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let jsonl_store = Arc::new(
+            crate::persist::JsonlStore::new(dir.clone(), std::time::Duration::from_secs(60)).await,
+        );
+        let max_runs = 5;
+        let store = Arc::new(
+            MetricsStore::new(max_runs, 1000).with_persist(Arc::clone(&jsonl_store)),
+        );
+
+        let p = make_payload("concurrent_target", 99);
+        store.add_metrics(p).await;
+        jsonl_store.flush_run("concurrent_target").await.unwrap();
+
+        for i in 0..max_runs {
+            let p = make_payload(&format!("filler_{}", i), i as u64);
+            store.add_metrics(p).await;
+            tokio::time::sleep(std::time::Duration::from_millis(15)).await;
+        }
+
+        let store1 = Arc::clone(&store);
+        let store2 = Arc::clone(&store);
+        let h1 = tokio::spawn(async move { store1.get_run("concurrent_target").await });
+        let h2 = tokio::spawn(async move { store2.get_run("concurrent_target").await });
+
+        let r1 = h1.await.expect("task 1 should not panic");
+        let r2 = h2.await.expect("task 2 should not panic");
+
+        if let Some(ref run) = r1 {
+            assert_eq!(run.steps.len(), 1);
+            assert_eq!(run.steps[0].step, 99);
+        }
+        if let Some(ref run) = r2 {
+            assert_eq!(run.steps.len(), 1);
+            assert_eq!(run.steps[0].step, 99);
+        }
+        assert!(r1.is_some() || r2.is_some(), "at least one should succeed");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_build_initial_runs_message_includes_disk_runs() {
+        let dir = std::env::temp_dir().join(format!(
+            "nn_monitor_test_initial_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let jsonl_store = Arc::new(
+            crate::persist::JsonlStore::new(dir.clone(), std::time::Duration::from_secs(60)).await,
+        );
+        let store = MetricsStore::new(10, 1000).with_persist(Arc::clone(&jsonl_store));
+
+        let p = make_payload("disk_run", 5);
+        store.add_metrics(p).await;
+        jsonl_store.flush_run("disk_run").await.unwrap();
+
+        let fresh_store =
+            MetricsStore::new(10, 1000).with_persist(Arc::clone(&jsonl_store));
+
+        let msg = fresh_store.build_initial_runs_message().await;
+        assert!(msg.contains("disk_run"), "message should include disk-persisted run");
+        assert!(msg.contains("initial_runs"), "message should be initial_runs type");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
