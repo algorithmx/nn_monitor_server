@@ -15,18 +15,12 @@ async fn test_step_dedup_replaces_data() {
 
     // POST step 100 with batch_size=32
     let first = valid_payload_with("run1", 100);
-    server
-        .post("/api/v1/metrics/layerwise")
-        .json(&first)
-        .await;
+    server.post("/api/v1/metrics/layerwise").json(&first).await;
 
     // POST step 100 again with batch_size=64 (different value)
     let mut second = valid_payload_with("run1", 100);
     second["metadata"]["batch_size"] = serde_json::json!(64);
-    server
-        .post("/api/v1/metrics/layerwise")
-        .json(&second)
-        .await;
+    server.post("/api/v1/metrics/layerwise").json(&second).await;
 
     let response = server.get("/api/v1/runs/run1").await;
     assert_eq!(response.status_code(), StatusCode::OK);
@@ -75,7 +69,10 @@ async fn test_step_dedup_preserves_ordering() {
     let body: serde_json::Value = response.json();
     let steps = body["steps"].as_array().unwrap();
     assert_eq!(steps.len(), 3);
-    assert_eq!(steps[0]["step"], 100, "steps should be sorted: [100, 200, 300]");
+    assert_eq!(
+        steps[0]["step"], 100,
+        "steps should be sorted: [100, 200, 300]"
+    );
     assert_eq!(steps[1]["step"], 200);
     assert_eq!(steps[2]["step"], 300);
 }
@@ -304,7 +301,9 @@ async fn test_layer_groups_values_sanitized() {
     let response = server.get("/api/v1/runs/test_run/latest").await;
     assert_eq!(response.status_code(), StatusCode::OK);
     let body: serde_json::Value = response.json();
-    let groups = body["layer_groups"].as_object().expect("layer_groups should be an object");
+    let groups = body["layer_groups"]
+        .as_object()
+        .expect("layer_groups should be an object");
 
     // Keys should be unchanged
     assert!(
@@ -338,10 +337,7 @@ async fn test_duplicate_step_updates_last_update() {
 
     let response = server.get("/api/v1/runs/run1").await;
     let body: serde_json::Value = response.json();
-    let first_update = body["last_update"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    let first_update = body["last_update"].as_str().unwrap().to_string();
 
     tokio::time::sleep(Duration::from_millis(15)).await;
 
@@ -353,10 +349,7 @@ async fn test_duplicate_step_updates_last_update() {
 
     let response = server.get("/api/v1/runs/run1").await;
     let body: serde_json::Value = response.json();
-    let second_update = body["last_update"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    let second_update = body["last_update"].as_str().unwrap().to_string();
 
     assert_ne!(
         first_update, second_update,
@@ -376,10 +369,7 @@ async fn test_created_at_preserved_on_dedup() {
 
     let response = server.get("/api/v1/runs/run1").await;
     let body: serde_json::Value = response.json();
-    let created_at = body["created_at"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    let created_at = body["created_at"].as_str().unwrap().to_string();
 
     // Same step again (dedup)
     server
@@ -389,10 +379,7 @@ async fn test_created_at_preserved_on_dedup() {
 
     let response = server.get("/api/v1/runs/run1").await;
     let body: serde_json::Value = response.json();
-    let created_at_after = body["created_at"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    let created_at_after = body["created_at"].as_str().unwrap().to_string();
 
     assert_eq!(
         created_at, created_at_after,

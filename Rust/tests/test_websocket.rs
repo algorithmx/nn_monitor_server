@@ -3,8 +3,8 @@ mod common;
 use std::sync::Arc;
 use std::time::Duration;
 
-use axum::Router;
 use axum::routing::{get, post};
+use axum::Router;
 use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde_json::Value;
@@ -36,7 +36,10 @@ fn build_ws_test_app() -> Router {
             "/api/v1/metrics/layerwise",
             post(nn_monitor_server::routes::metrics::post_metrics),
         )
-        .route("/api/v1/runs", get(nn_monitor_server::routes::runs::get_runs))
+        .route(
+            "/api/v1/runs",
+            get(nn_monitor_server::routes::runs::get_runs),
+        )
         .route(
             "/api/v1/runs/{run_id}",
             get(nn_monitor_server::routes::runs::get_run),
@@ -49,10 +52,7 @@ fn build_ws_test_app() -> Router {
             "/health",
             get(nn_monitor_server::routes::health::get_health),
         )
-        .route(
-            "/ws",
-            get(nn_monitor_server::routes::ws_route::ws_handler),
-        )
+        .route("/ws", get(nn_monitor_server::routes::ws_route::ws_handler))
         .with_state(state)
 }
 
@@ -63,19 +63,14 @@ async fn start_test_server() -> (String, tokio::task::JoinHandle<()>) {
     let handle = tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
     });
-    (
-        format!("ws://{}:{}", addr.ip(), addr.port()),
-        handle,
-    )
+    (format!("ws://{}:{}", addr.ip(), addr.port()), handle)
 }
 
 fn http_base_url(ws_url: &str) -> String {
     ws_url.replace("ws://", "http://")
 }
 
-async fn connect_ws(
-    ws_url: &str,
-) -> WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>> {
+async fn connect_ws(ws_url: &str) -> WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>> {
     let url = format!("{}/ws", ws_url);
     let (stream, _response) = connect_async(&url).await.unwrap();
     stream
@@ -122,7 +117,10 @@ async fn test_ws_connect_and_initial_runs() {
     assert!(msg.is_some(), "Should receive initial_runs message");
 
     let msg = msg.unwrap();
-    assert_eq!(msg["type"], "initial_runs", "Message type should be initial_runs");
+    assert_eq!(
+        msg["type"], "initial_runs",
+        "Message type should be initial_runs"
+    );
     assert!(msg["data"].is_object(), "data should be an object");
 }
 
@@ -252,7 +250,10 @@ async fn test_ws_subscribe_run_lite_mode() {
     );
 
     // Check intermediate_features does not contain activation_mean
-    if let Some(ifeatures) = layer_obj.get("intermediate_features").and_then(|v| v.as_object()) {
+    if let Some(ifeatures) = layer_obj
+        .get("intermediate_features")
+        .and_then(|v| v.as_object())
+    {
         assert!(
             !ifeatures.contains_key("activation_mean"),
             "Lite mode should strip activation_mean"
@@ -307,10 +308,7 @@ async fn test_ws_unknown_action_ignored() {
         .unwrap();
 
     // Connection should stay open for at least 1 second (no crash, no close)
-    let result = timeout(Duration::from_secs(2), async {
-        ws.next().await
-    })
-    .await;
+    let result = timeout(Duration::from_secs(2), async { ws.next().await }).await;
 
     // Either no message arrives (timeout) or it's not an error/close
     match result {
@@ -508,7 +506,10 @@ async fn test_ws_full_mode_includes_all_fields() {
         layer_obj.contains_key("parameter_statistics"),
         "Full mode should include parameter_statistics"
     );
-    if let Some(ifeatures) = layer_obj.get("intermediate_features").and_then(|v| v.as_object()) {
+    if let Some(ifeatures) = layer_obj
+        .get("intermediate_features")
+        .and_then(|v| v.as_object())
+    {
         assert!(
             ifeatures.contains_key("activation_mean"),
             "Full mode should include activation_mean"

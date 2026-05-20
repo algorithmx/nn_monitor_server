@@ -6,10 +6,7 @@ use serde_json::json;
 
 use super::AppState;
 
-pub async fn post_metrics(
-    State(state): State<AppState>,
-    body: Bytes,
-) -> impl IntoResponse {
+pub async fn post_metrics(State(state): State<AppState>, body: Bytes) -> impl IntoResponse {
     let payload: crate::models::MetricsPayload = match serde_json::from_slice(&body) {
         Ok(p) => p,
         Err(e) => {
@@ -31,11 +28,7 @@ pub async fn post_metrics(
         return (StatusCode::UNPROCESSABLE_ENTITY, axum::Json(error_detail)).into_response();
     }
 
-    let run_id = payload.metadata.run_id.clone();
-
-    let step_data = state.store.add_metrics(payload).await;
-
-    let msg = crate::ws::build_new_metrics_message(&run_id, &step_data);
+    let (run_id, msg) = state.store.add_validated_metrics_and_message(payload).await;
     state.ws_manager.broadcast(msg);
 
     let response = crate::models::MetricsAcceptedResponse {

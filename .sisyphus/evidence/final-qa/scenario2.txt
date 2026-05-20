@@ -1,0 +1,3 @@
+=== SCENARIO 2: POST Valid Metrics ===
+{"status":"accepted","run_id":"qa_test"}
+HTTP: 202

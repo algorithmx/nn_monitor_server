@@ -1,5 +1,5 @@
 pub mod config;
 pub mod models;
+pub mod routes;
 pub mod store;
 pub mod ws;
-pub mod routes;

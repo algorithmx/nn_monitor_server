@@ -1,6 +1,6 @@
-use std::sync::Arc;
-use axum::Router;
 use axum::routing::{get, post};
+use axum::Router;
+use std::sync::Arc;
 
 pub fn build_test_app() -> Router {
     let store = Arc::new(nn_monitor_server::store::MetricsStore::new(10, 1000));
@@ -23,7 +23,10 @@ pub fn build_test_app() -> Router {
             "/api/v1/metrics/layerwise",
             post(nn_monitor_server::routes::metrics::post_metrics),
         )
-        .route("/api/v1/runs", get(nn_monitor_server::routes::runs::get_runs))
+        .route(
+            "/api/v1/runs",
+            get(nn_monitor_server::routes::runs::get_runs),
+        )
         .route(
             "/api/v1/runs/{run_id}",
             get(nn_monitor_server::routes::runs::get_run),

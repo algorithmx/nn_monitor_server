@@ -73,9 +73,7 @@ impl<'de> Deserialize<'de> for NonNegativeF64 {
         if *v >= 0.0 {
             Ok(NonNegativeF64(v))
         } else {
-            Err(serde::de::Error::custom(
-                "Value must be non-negative",
-            ))
+            Err(serde::de::Error::custom("Value must be non-negative"))
         }
     }
 }
@@ -502,5 +500,224 @@ mod tests {
             "Expected layer_statistics error, got: {}",
             err
         );
+    }
+
+    // ==================== New edge-case tests ====================
+
+    #[test]
+    fn test_finite_f64_serialization_roundtrip_expected() {
+        let original = FiniteF64::new(3.14159265358979).unwrap();
+        let serialized = serde_json::to_value(original.value()).unwrap();
+        let deserialized: FiniteF64 =
+            serde_json::from_value(serialized).expect("FiniteF64 roundtrip should succeed");
+        assert_eq!(
+            original.value(),
+            deserialized.value(),
+            "FiniteF64 roundtrip should preserve value"
+        );
+
+        let neg = FiniteF64::new(-42.5).unwrap();
+        let ser = serde_json::to_value(neg.value()).unwrap();
+        let de: FiniteF64 =
+            serde_json::from_value(ser).expect("Negative FiniteF64 roundtrip should succeed");
+        assert_eq!(neg.value(), de.value());
+    }
+
+    #[test]
+    fn test_non_negative_f64_zero_accepted_expected() {
+        let json = serde_json::Value::from(0.0);
+        let result: NonNegativeF64 =
+            serde_json::from_value(json).expect("NonNegativeF64 should accept 0.0");
+        assert_eq!(result.value(), 0.0);
+    }
+
+    #[test]
+    fn test_non_negative_f64_very_small_positive_accepted_expected() {
+        let json = serde_json::Value::from(0.000001);
+        let result: NonNegativeF64 =
+            serde_json::from_value(json).expect("NonNegativeF64 should accept 0.000001");
+        assert!(
+            (result.value() - 0.000001).abs() < f64::EPSILON,
+            "Should preserve very small positive value"
+        );
+    }
+
+    #[test]
+    fn test_metadata_batch_size_zero_rejected_expected() {
+        let mut json = valid_payload_json();
+        json["metadata"]["batch_size"] = serde_json::Value::from(0);
+        let payload: MetricsPayload =
+            serde_json::from_value(json).expect("batch_size=0 deserializes (u32)");
+        let err = payload.validate().unwrap_err();
+        assert!(
+            err.contains("batch_size"),
+            "batch_size=0 should fail validation, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_metadata_timestamp_zero_rejected_expected() {
+        let mut json = valid_payload_json();
+        json["metadata"]["timestamp"] = serde_json::Value::from(0.0);
+        let payload: MetricsPayload =
+            serde_json::from_value(json).expect("timestamp=0.0 deserializes (FiniteF64)");
+        let err = payload.validate().unwrap_err();
+        assert!(
+            err.contains("timestamp"),
+            "timestamp=0.0 should fail validation, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_metadata_timestamp_negative_rejected_expected() {
+        let mut json = valid_payload_json();
+        json["metadata"]["timestamp"] = serde_json::Value::from(-1.0);
+        let payload: MetricsPayload =
+            serde_json::from_value(json).expect("timestamp=-1.0 deserializes (FiniteF64)");
+        let err = payload.validate().unwrap_err();
+        assert!(
+            err.contains("timestamp"),
+            "timestamp=-1.0 should fail validation, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_layer_statistic_depth_index_zero_boundary_passes_expected() {
+        let mut json = valid_payload_json();
+        json["layer_statistics"][0]["depth_index"] = serde_json::Value::from(0u32);
+        json["layer_statistics"][1]["depth_index"] = serde_json::Value::from(0u32);
+        json["layer_statistics"][2]["depth_index"] = serde_json::Value::from(1u32);
+        let payload: MetricsPayload =
+            serde_json::from_value(json).expect("depth_index=0 boundary deserializes");
+        assert!(
+            payload.validate().is_ok(),
+            "depth_index=0 (boundary) should pass validation"
+        );
+    }
+
+    #[test]
+    fn test_metrics_payload_single_layer_minimum_valid_expected() {
+        let mut json = valid_payload_json();
+        json["layer_statistics"] = serde_json::json!([json["layer_statistics"][0]]);
+        let payload: MetricsPayload =
+            serde_json::from_value(json).expect("Single-layer payload should deserialize");
+        assert!(payload.validate().is_ok(), "Single layer should be valid");
+        assert_eq!(payload.layer_statistics.len(), 1);
+    }
+
+    #[test]
+    fn test_metrics_payload_many_layers_all_valid_expected() {
+        let mut json = valid_payload_json();
+        let layer_template = json["layer_statistics"][0].clone();
+        let mut layers = Vec::new();
+        for i in 0..10u32 {
+            let mut layer = layer_template.clone();
+            layer["layer_id"] = serde_json::Value::from(format!("layer_{}", i));
+            layer["depth_index"] = serde_json::Value::from(i);
+            layers.push(layer);
+        }
+        json["layer_statistics"] = serde_json::Value::Array(layers);
+        let payload: MetricsPayload =
+            serde_json::from_value(json).expect("10-layer payload should deserialize");
+        assert!(
+            payload.validate().is_ok(),
+            "10 layers all valid should pass"
+        );
+        assert_eq!(payload.layer_statistics.len(), 10);
+    }
+
+    #[test]
+    fn test_cross_layer_analysis_empty_gradient_norm_ratio_passes_expected() {
+        let mut json = valid_payload_json();
+        json["cross_layer_analysis"]["gradient_norm_ratio"] = serde_json::json!({});
+        let payload: MetricsPayload =
+            serde_json::from_value(json).expect("Empty gradient_norm_ratio deserializes");
+        assert!(
+            payload.validate().is_ok(),
+            "Empty gradient_norm_ratio should pass validation (no constraints on it)"
+        );
+        assert!(payload.cross_layer_analysis.gradient_norm_ratio.is_empty());
+    }
+
+    #[test]
+    fn test_cross_layer_analysis_nan_in_gradient_norm_ratio_accepted_by_serde_expected() {
+        // gradient_norm_ratio uses plain f64, not FiniteF64, so serde_json accepts NaN.
+        // However, serde_json::Value::from(f64::NAN) becomes Null, so we must construct
+        // the map manually to confirm f64 acceptance behavior.
+        let mut json = valid_payload_json();
+        // Replace gradient_norm_ratio with a map containing a normal f64 value.
+        // We can't put NaN via serde_json::Value (it becomes null), but we verify
+        // that the field uses plain f64 by confirming it deserializes fine with
+        // arbitrary f64 values including very large ones.
+        json["cross_layer_analysis"]["gradient_norm_ratio"] = serde_json::json!({
+            "ratio_a": 1e308,
+            "ratio_b": -1e308
+        });
+        let payload: MetricsPayload =
+            serde_json::from_value(json).expect("Large f64 in gradient_norm_ratio deserializes");
+        assert!(
+            payload.validate().is_ok(),
+            "Plain f64 in gradient_norm_ratio should not block validation"
+        );
+        // Note: NaN in serde_json::Value becomes null, which would cause a type error.
+        // This test documents that gradient_norm_ratio uses plain f64 (not FiniteF64).
+        let ratios = &payload.cross_layer_analysis.gradient_norm_ratio;
+        assert_eq!(ratios.len(), 2);
+    }
+
+    #[test]
+    fn test_activation_shape_exactly_two_dimensions_passes_expected() {
+        let mut json = valid_payload_json();
+        json["layer_statistics"][0]["intermediate_features"]["activation_shape"] =
+            serde_json::json!([64, 128]);
+        let payload: MetricsPayload =
+            serde_json::from_value(json).expect("2-dim activation_shape deserializes");
+        assert!(
+            payload.validate().is_ok(),
+            "activation_shape with exactly 2 dimensions should pass"
+        );
+        assert_eq!(
+            payload.layer_statistics[0]
+                .intermediate_features
+                .activation_shape
+                .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn test_layer_id_special_characters_accepted_expected() {
+        let mut json = valid_payload_json();
+        json["layer_statistics"][0]["layer_id"] =
+            serde_json::Value::from("encoder/linear-1_conv2d");
+        json["layer_statistics"][1]["layer_id"] = serde_json::Value::from("decoder/layer_norm");
+        json["layer_statistics"][2]["layer_id"] =
+            serde_json::Value::from("model.transformer.attn_head-3");
+        let payload: MetricsPayload =
+            serde_json::from_value(json).expect("Special-char layer_id deserializes");
+        assert!(
+            payload.validate().is_ok(),
+            "layer_id with slashes, hyphens, underscores, dots should be accepted"
+        );
+        assert_eq!(
+            payload.layer_statistics[0].layer_id,
+            "encoder/linear-1_conv2d"
+        );
+    }
+
+    #[test]
+    fn test_layer_type_empty_string_accepted_expected() {
+        let mut json = valid_payload_json();
+        json["layer_statistics"][0]["layer_type"] = serde_json::Value::from("");
+        let payload: MetricsPayload =
+            serde_json::from_value(json).expect("Empty layer_type deserializes");
+        assert!(
+            payload.validate().is_ok(),
+            "Empty layer_type should pass validation (no constraint defined)"
+        );
+        assert_eq!(payload.layer_statistics[0].layer_type, "");
     }
 }

@@ -1,0 +1,49 @@
+Task 15: Frontend Integration Verification (Playwright)
+=======================================================
+Date: 2026-05-14
+Server: Rust (nn_monitor_server, release build)
+
+RESULTS
+=======
+[DASHBOARD LOAD] PASS
+  - Navigated to http://localhost:8000/
+  - Page title: "nn_monitor"
+  - Page loaded with full UI: banner, live/pause toggle, step controls, run selector, sidebar
+  - WebSocket indicator: "live" (green)
+  - Initial state: "awaiting data..." message displayed correctly
+  - Browser console errors: 0
+  - Screenshot: .sisyphus/evidence/task-15-frontend-load.png
+
+[WEBSOCKET CONNECTION] PASS
+  - No console errors during page load
+  - Live indicator showing (green dot)
+  - WebSocket connected at ws://localhost:8000/ws
+
+[METRICS DISPLAY] PASS
+  - POST to /api/v1/metrics/layerwise returned {"status":"accepted","run_id":"visual_test"}
+  - Dashboard updated within 3 seconds via WebSocket
+  - Run selector shows: "visual_test (1 steps)" [selected]
+  - Sidebar shows:
+    - step: 100
+    - layers: 1
+    - updated: timestamp displayed
+  - Layer card shows:
+    - layer1 (Linear)
+    - activation std: 5.00e-1
+    - gradient norm: 1.00e-1
+  - Browser console errors: 0
+  - Screenshot: .sisyphus/evidence/task-15-frontend-metrics.png
+
+EVIDENCE FILES
+=============
+  .sisyphus/evidence/task-15-frontend-load.png      - Dashboard initial load
+  .sisyphus/evidence/task-15-frontend-metrics.png    - Dashboard with metrics data
+  .sisyphus/evidence/task-15-frontend-verification.txt - This summary
+
+ALL CHECKS PASSED
+=================
+[x] Dashboard loads at http://localhost:8000/
+[x] WebSocket connects (no errors in browser console)
+[x] Metrics appear in dashboard after POST
+[x] Screenshots captured as evidence
+[x] Evidence saved to .sisyphus/evidence/

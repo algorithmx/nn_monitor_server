@@ -1,0 +1,48 @@
+QA Summary - 2026-05-14
+========================
+
+Step 3: POST valid payload
+  Status: 202 ✅
+  Body: {"status":"accepted","run_id":"test_run_1"}
+
+Step 4: GET /runs
+  Status: 200 ✅
+  Body: Contains test_run_1 with step_count=1, latest_step=100
+
+Step 5: GET /runs/test_run_1
+  Status: 200 ✅
+  Body: Full RunData with steps array containing layer data
+
+Step 6: Layer ID sanitization
+  layer_id "conv1.weight" → "conv1/weight" ✅
+  layer_id "conv2.weight" → "conv2/weight" ✅
+  layer_groups values also sanitized ✅
+
+Step 7: Cross-layer analysis
+  feature_std_gradient: -0.15 ✅
+  gradient_norm_ratio: {"conv1.weight": 1.2, "conv2.weight": 0.8} ✅
+  NOTE: gradient_norm_ratio keys use ORIGINAL dot notation (not sanitized)
+  This is intentional - keys in cross_layer_analysis match user-provided names.
+
+Step 8: Dedup (same global_step=100)
+  Second POST returned 202 accepted ✅
+  step_count still 1 after dedup ✅
+
+Step 9: GET /runs/test_run_1/latest
+  Status: 200 ✅
+  Body: Single step object with step=100
+
+Step 10: Health endpoint
+  Status: 200 ✅
+  Body: {"status":"healthy","active_connections":0}
+
+Step 11: Error handling (422)
+  Status: 422 ✅
+  Body: {"detail":[{"loc":["body"],"msg":"missing field `metadata`...","type":"value_error"}]}
+
+EDGE CASES TESTED:
+  - null values (bias: null, cross_layer_std_ratio: null) ✅
+  - Negative values (activation_mean: -0.1, mean: -0.02) ✅
+  - Duplicate step dedup ✅
+  - Invalid payload (missing required fields) ✅
+  - Layer ID dot→slash sanitization ✅

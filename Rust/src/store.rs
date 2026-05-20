@@ -3,6 +3,8 @@ use std::collections::HashMap as StdHashMap;
 
 use chrono::Local;
 use hashbrown::HashMap;
+use serde::ser::{SerializeMap, Serializer};
+use serde::Serialize;
 use tokio::sync::RwLock;
 
 use crate::models::{MetricsPayload, RunData, RunInfo, StepData};
@@ -28,6 +30,42 @@ pub struct MetricsStore {
     max_steps_per_run: usize,
 }
 
+#[derive(Serialize)]
+struct RunInfoRef<'a> {
+    created_at: &'a str,
+    last_update: &'a str,
+    step_count: u32,
+    latest_step: Option<u64>,
+}
+
+struct RunSummaries<'a>(&'a HashMap<String, RunData>);
+
+impl Serialize for RunSummaries<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+        for (run_id, run) in self.0 {
+            let info = RunInfoRef {
+                created_at: &run.created_at,
+                last_update: &run.last_update,
+                step_count: run.steps.len() as u32,
+                latest_step: run.steps.last().map(|s| s.step),
+            };
+            map.serialize_entry(run_id, &info)?;
+        }
+        map.end()
+    }
+}
+
+#[derive(Serialize)]
+struct InitialRunsMessage<'a> {
+    #[serde(rename = "type")]
+    message_type: &'static str,
+    data: RunSummaries<'a>,
+}
+
 impl MetricsStore {
     pub fn new(max_runs: usize, max_steps_per_run: usize) -> Self {
         Self {
@@ -44,7 +82,27 @@ impl MetricsStore {
 
         let step_data = build_step_data(&payload);
         let run_id = payload.metadata.run_id;
+        let result = step_data.clone();
 
+        self.insert_step_data(run_id, step_data).await;
+
+        result
+    }
+
+    pub async fn add_validated_metrics_and_message(
+        &self,
+        payload: MetricsPayload,
+    ) -> (String, String) {
+        let step_data = build_step_data(&payload);
+        let run_id = payload.metadata.run_id;
+        let msg = crate::ws::build_new_metrics_message(&run_id, &step_data);
+
+        self.insert_step_data(run_id.clone(), step_data).await;
+
+        (run_id, msg)
+    }
+
+    async fn insert_step_data(&self, run_id: String, step_data: StepData) {
         let mut runs = self.runs.write().await;
 
         let is_new_run = !runs.contains_key(&run_id);
@@ -71,11 +129,8 @@ impl MetricsStore {
             );
         }
 
-        let run = runs
-            .get_mut(&run_id)
-            .expect("run was just inserted");
+        let run = runs.get_mut(&run_id).expect("run was just inserted");
 
-        let result = step_data.clone();
         let step = step_data.step;
         match run.steps.binary_search_by_key(&step, |s| s.step) {
             Ok(idx) => run.steps[idx] = step_data,
@@ -90,13 +145,19 @@ impl MetricsStore {
         if !is_new_run {
             run.last_update = now_iso();
         }
-
-        result
     }
 
     pub async fn get_run(&self, run_id: &str) -> Option<RunData> {
         let runs = self.runs.read().await;
         runs.get(run_id).cloned()
+    }
+
+    pub async fn get_run_json(&self, run_id: &str) -> Option<String> {
+        let runs = self.runs.read().await;
+        runs.get(run_id)
+            .map(serde_json::to_string)
+            .transpose()
+            .expect("RunData serialization should never fail")
     }
 
     pub async fn get_all_runs(&self) -> StdHashMap<String, RunInfo> {
@@ -116,15 +177,50 @@ impl MetricsStore {
             .collect()
     }
 
+    pub async fn get_all_runs_json(&self) -> String {
+        let runs = self.runs.read().await;
+        serde_json::to_string(&RunSummaries(&runs))
+            .expect("run summaries serialization should never fail")
+    }
+
     pub async fn get_latest_step(&self, run_id: &str) -> Option<StepData> {
         let runs = self.runs.read().await;
         runs.get(run_id).and_then(|run| run.steps.last().cloned())
+    }
+
+    pub async fn get_latest_step_json(&self, run_id: &str) -> Option<String> {
+        let runs = self.runs.read().await;
+        runs.get(run_id)
+            .and_then(|run| run.steps.last())
+            .map(serde_json::to_string)
+            .transpose()
+            .expect("StepData serialization should never fail")
+    }
+
+    pub async fn build_initial_runs_message(&self) -> String {
+        let runs = self.runs.read().await;
+        let msg = InitialRunsMessage {
+            message_type: "initial_runs",
+            data: RunSummaries(&runs),
+        };
+        serde_json::to_string(&msg).expect("initial_runs serialization should never fail")
+    }
+
+    pub async fn build_run_history_message(&self, run_id: &str, lite: bool) -> Option<String> {
+        let runs = self.runs.read().await;
+        let run_data = runs.get(run_id)?;
+        Some(if lite {
+            crate::ws::build_compact_run_history_message(run_id, run_data)
+        } else {
+            crate::ws::build_run_history_message(run_id, run_data)
+        })
     }
 }
 
 /// Build StepData from validated payload, applying layer ID sanitization.
 fn build_step_data(payload: &MetricsPayload) -> StepData {
-    let sanitized_layers: Vec<serde_json::Value> = payload.layer_statistics
+    let sanitized_layers: Vec<serde_json::Value> = payload
+        .layer_statistics
         .iter()
         .map(|ls| {
             let sanitized_id = sanitize_layer_id(&ls.layer_id);
@@ -160,8 +256,10 @@ fn build_step_data(payload: &MetricsPayload) -> StepData {
         groups
             .iter()
             .map(|(key, layer_ids)| {
-                let sanitized_ids: Vec<String> =
-                    layer_ids.iter().map(|id| sanitize_layer_id(id).into_owned()).collect();
+                let sanitized_ids: Vec<String> = layer_ids
+                    .iter()
+                    .map(|id| sanitize_layer_id(id).into_owned())
+                    .collect();
                 (key.clone(), sanitized_ids)
             })
             .collect()
@@ -365,9 +463,7 @@ mod tests {
             .layer_groups
             .as_ref()
             .expect("layer_groups should exist");
-        let enc_ids = groups
-            .get("enc")
-            .expect("enc group should exist");
+        let enc_ids = groups.get("enc").expect("enc group should exist");
         assert_eq!(enc_ids[0], "encoder/linear1");
         assert_eq!(enc_ids[1], "encoder/relu/1");
 
@@ -435,7 +531,10 @@ mod tests {
 
         let run = store.get_run("run1").await.expect("run should exist");
         assert_eq!(run.steps.len(), 3);
-        assert_eq!(run.steps[0].step, 100, "steps should be sorted: [100, 200, 300]");
+        assert_eq!(
+            run.steps[0].step, 100,
+            "steps should be sorted: [100, 200, 300]"
+        );
         assert_eq!(run.steps[1].step, 200);
         assert_eq!(run.steps[2].step, 300);
     }
@@ -540,7 +639,11 @@ mod tests {
         store.add_metrics(p).await;
 
         let run = store.get_run("run1").await.expect("run should exist");
-        assert_eq!(run.steps.len(), 5, "should still have max_steps_per_run steps");
+        assert_eq!(
+            run.steps.len(),
+            5,
+            "should still have max_steps_per_run steps"
+        );
         assert_eq!(
             run.steps[0].step, 2,
             "oldest step should be evicted when boundary exceeded"
@@ -674,7 +777,10 @@ mod tests {
             );
         }
 
-        let groups = step.layer_groups.as_ref().expect("layer_groups should exist");
+        let groups = step
+            .layer_groups
+            .as_ref()
+            .expect("layer_groups should exist");
         let all_ids = groups.get("all").expect("'all' group should exist");
         assert_eq!(all_ids.len(), 3);
         assert_eq!(all_ids[0], "layer/0/weight");
@@ -821,7 +927,10 @@ mod tests {
             serde_json::from_value(json).expect("payload should deserialize");
         let step = store.add_metrics(payload).await;
 
-        let groups = step.layer_groups.as_ref().expect("layer_groups should exist");
+        let groups = step
+            .layer_groups
+            .as_ref()
+            .expect("layer_groups should exist");
 
         let enc = groups.get("encoder").expect("encoder group should exist");
         assert_eq!(enc[0], "enc/linear/1", "encoder layer 1 sanitized");
@@ -974,12 +1083,7 @@ mod tests {
                 .get_run(&run_id)
                 .await
                 .unwrap_or_else(|| panic!("{} should exist", run_id));
-            assert_eq!(
-                run.steps.len(),
-                1,
-                "{} should have exactly 1 step",
-                run_id
-            );
+            assert_eq!(run.steps.len(), 1, "{} should have exactly 1 step", run_id);
             assert_eq!(
                 run.steps[0].step, i as u64,
                 "{} should have step {}",

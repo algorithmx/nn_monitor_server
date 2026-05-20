@@ -1,0 +1,344 @@
+warning: fields `max_request_size` and `cors_origins` are never read
+  --> src/config.rs:38:9
+   |
+32 | pub struct ServerConfig {
+   |            ------------ fields in this struct
+...
+38 |     pub max_request_size: usize,
+   |         ^^^^^^^^^^^^^^^^
+...
+46 |     pub cors_origins: Vec<String>,
+   |         ^^^^^^^^^^^^
+   |
+   = note: `ServerConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: associated items `value` and `new` are never used
+  --> src/models.rs:11:12
+   |
+10 | impl FiniteF64 {
+   | -------------- associated items in this implementation
+11 |     pub fn value(&self) -> f64 {
+   |            ^^^^^
+...
+14 |     pub fn new(v: f64) -> Result<Self, String> {
+   |            ^^^
+
+warning: method `value` is never used
+  --> src/models.rs:59:12
+   |
+58 | impl NonNegativeF64 {
+   | ------------------- method in this implementation
+59 |     pub fn value(&self) -> f64 {
+   |            ^^^^^
+
+warning: struct `ErrorDetail` is never constructed
+   --> src/models.rs:248:12
+    |
+248 | pub struct ErrorDetail {
+    |            ^^^^^^^^^^^
+
+warning: field `config` is never read
+  --> src/routes/mod.rs:13:9
+   |
+10 | pub struct AppState {
+   |            -------- field in this struct
+...
+13 |     pub config: crate::config::ServerConfig,
+   |         ^^^^^^
+   |
+   = note: `AppState` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: struct `ErrorDetail` is never constructed
+   --> src/models.rs:248:12
+    |
+248 | pub struct ErrorDetail {
+    |            ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `nn_monitor_server` (bin "nn_monitor_server") generated 5 warnings
+warning: `nn_monitor_server` (bin "nn_monitor_server" test) generated 2 warnings (1 duplicate)
+warning: function `valid_payload_with` is never used
+  --> tests/common/mod.rs:80:8
+   |
+80 | pub fn valid_payload_with(run_id: &str, global_step: u64) -> serde_json::Value {
+   |        ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `build_test_app` is never used
+ --> tests/common/mod.rs:5:8
+  |
+5 | pub fn build_test_app() -> Router {
+  |        ^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `nn_monitor_server` (test "test_error_responses") generated 1 warning
+warning: `nn_monitor_server` (test "test_websocket") generated 1 warning
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.23s
+     Running unittests src/lib.rs (target/debug/deps/nn_monitor_server-0a5c9357b21edb9b)
+
+running 63 tests
+test config::tests::test_config_deserialize_partial ... ok
+test config::tests::test_config_deserialize_with_defaults ... ok
+test config::tests::test_default_cors_origins ... ok
+test config::tests::test_config_load_does_not_panic_without_env ... ok
+test config::tests::test_default_host ... ok
+test config::tests::test_default_max_steps_per_run ... ok
+test config::tests::test_default_port ... ok
+test models::tests::test_activation_shape_exactly_two_dimensions_passes_expected ... ok
+test config::tests::test_default_max_runs ... ok
+test config::tests::test_default_log_level ... ok
+test models::tests::test_cross_layer_analysis_empty_gradient_norm_ratio_passes_expected ... ok
+test models::tests::test_empty_layer_statistics_rejected ... ok
+test models::tests::test_empty_activation_shape_rejected ... ok
+test config::tests::test_default_max_request_size ... ok
+test models::tests::test_finite_f64_serialization_roundtrip_expected ... ok
+test models::tests::test_empty_run_id_rejected ... ok
+test models::tests::test_full_payload_valid ... ok
+test models::tests::test_inf_rejected ... ok
+test models::tests::test_layer_id_special_characters_accepted_expected ... ok
+test models::tests::test_layer_type_empty_string_accepted_expected ... ok
+test models::tests::test_cross_layer_analysis_nan_in_gradient_norm_ratio_accepted_by_serde_expected ... ok
+test models::tests::test_metadata_batch_size_zero_rejected_expected ... ok
+test models::tests::test_layer_statistic_depth_index_zero_boundary_passes_expected ... ok
+test models::tests::test_metadata_timestamp_negative_rejected_expected ... ok
+test models::tests::test_metadata_timestamp_zero_rejected_expected ... ok
+test models::tests::test_nan_rejected ... ok
+test models::tests::test_negative_rejected ... ok
+test models::tests::test_non_negative_f64_very_small_positive_accepted_expected ... ok
+test models::tests::test_non_negative_f64_zero_accepted_expected ... ok
+test models::tests::test_metrics_payload_many_layers_all_valid_expected ... ok
+test models::tests::test_metrics_payload_single_layer_minimum_valid_expected ... ok
+test models::tests::test_zero_accepted ... ok
+test store::tests::test_add_metrics_preserves_cross_layer ... ok
+test store::tests::test_get_all_runs_empty ... ok
+test models::tests::test_optional_bias ... ok
+test models::tests::test_unsorted_depth_rejected ... ok
+test store::tests::test_concurrent_add_metrics ... ok
+test store::tests::test_get_latest_step_nonexistent ... ok
+test store::tests::test_get_run_nonexistent ... ok
+test store::tests::test_latest_step ... ok
+test store::tests::test_layer_groups_multiple_groups ... ok
+test store::tests::test_layer_id_sanitization ... ok
+test store::tests::test_multiple_layers_sanitization ... ok
+test store::tests::test_last_update_on_dedup ... ok
+test store::tests::test_get_all_runs_multiple ... ok
+test store::tests::test_step_dedup_replaces ... ok
+test store::tests::test_step_eviction_boundary_at_max ... ok
+test store::tests::test_step_eviction_oldest ... ok
+test store::tests::test_run_eviction_updates_last_update ... ok
+test ws::tests::test_broadcast_no_receivers ... ok
+test store::tests::test_steps_sorted ... ok
+test ws::tests::test_broadcast_with_receiver ... ok
+test ws::tests::test_build_compact_run_history_message ... ok
+test ws::tests::test_build_error_message ... ok
+test ws::tests::test_build_initial_runs_message ... ok
+test ws::tests::test_build_new_metrics_message ... ok
+test ws::tests::test_build_pong_message ... ok
+test ws::tests::test_build_run_history_message_full ... ok
+test ws::tests::test_compact_layer_strips_fields ... ok
+test ws::tests::test_ws_manager_new ... ok
+test ws::tests::test_connect_disconnect_count ... ok
+test store::tests::test_run_eviction_boundary_at_max ... ok
+test store::tests::test_run_eviction_oldest ... ok
+
+test result: ok. 63 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running unittests src/main.rs (target/debug/deps/nn_monitor_server-87a8108653368466)
+
+running 63 tests
+test config::tests::test_config_deserialize_partial ... ok
+test config::tests::test_default_cors_origins ... ok
+test config::tests::test_config_deserialize_with_defaults ... ok
+test config::tests::test_config_load_does_not_panic_without_env ... ok
+test config::tests::test_default_host ... ok
+test config::tests::test_default_log_level ... ok
+test config::tests::test_default_max_request_size ... ok
+test config::tests::test_default_max_steps_per_run ... ok
+test config::tests::test_default_port ... ok
+test models::tests::test_activation_shape_exactly_two_dimensions_passes_expected ... ok
+test config::tests::test_default_max_runs ... ok
+test models::tests::test_cross_layer_analysis_empty_gradient_norm_ratio_passes_expected ... ok
+test models::tests::test_cross_layer_analysis_nan_in_gradient_norm_ratio_accepted_by_serde_expected ... ok
+test models::tests::test_empty_activation_shape_rejected ... ok
+test models::tests::test_empty_layer_statistics_rejected ... ok
+test models::tests::test_empty_run_id_rejected ... ok
+test models::tests::test_inf_rejected ... ok
+test models::tests::test_finite_f64_serialization_roundtrip_expected ... ok
+test models::tests::test_full_payload_valid ... ok
+test models::tests::test_layer_id_special_characters_accepted_expected ... ok
+test models::tests::test_layer_statistic_depth_index_zero_boundary_passes_expected ... ok
+test models::tests::test_layer_type_empty_string_accepted_expected ... ok
+test models::tests::test_metadata_timestamp_negative_rejected_expected ... ok
+test models::tests::test_metadata_batch_size_zero_rejected_expected ... ok
+test models::tests::test_metadata_timestamp_zero_rejected_expected ... ok
+test models::tests::test_metrics_payload_single_layer_minimum_valid_expected ... ok
+test models::tests::test_metrics_payload_many_layers_all_valid_expected ... ok
+test models::tests::test_nan_rejected ... ok
+test models::tests::test_non_negative_f64_very_small_positive_accepted_expected ... ok
+test models::tests::test_negative_rejected ... ok
+test models::tests::test_non_negative_f64_zero_accepted_expected ... ok
+test models::tests::test_optional_bias ... ok
+test models::tests::test_unsorted_depth_rejected ... ok
+test models::tests::test_zero_accepted ... ok
+test store::tests::test_add_metrics_preserves_cross_layer ... ok
+test store::tests::test_get_all_runs_empty ... ok
+test store::tests::test_get_run_nonexistent ... ok
+test store::tests::test_get_latest_step_nonexistent ... ok
+test store::tests::test_latest_step ... ok
+test store::tests::test_layer_groups_multiple_groups ... ok
+test store::tests::test_concurrent_add_metrics ... ok
+test store::tests::test_layer_id_sanitization ... ok
+test store::tests::test_multiple_layers_sanitization ... ok
+test store::tests::test_last_update_on_dedup ... ok
+test store::tests::test_get_all_runs_multiple ... ok
+test store::tests::test_step_dedup_replaces ... ok
+test store::tests::test_step_eviction_boundary_at_max ... ok
+test store::tests::test_step_eviction_oldest ... ok
+test store::tests::test_steps_sorted ... ok
+test ws::tests::test_broadcast_no_receivers ... ok
+test ws::tests::test_broadcast_with_receiver ... ok
+test store::tests::test_run_eviction_updates_last_update ... ok
+test ws::tests::test_build_error_message ... ok
+test ws::tests::test_build_initial_runs_message ... ok
+test ws::tests::test_build_compact_run_history_message ... ok
+test ws::tests::test_build_pong_message ... ok
+test ws::tests::test_build_new_metrics_message ... ok
+test ws::tests::test_compact_layer_strips_fields ... ok
+test ws::tests::test_build_run_history_message_full ... ok
+test ws::tests::test_connect_disconnect_count ... ok
+test ws::tests::test_ws_manager_new ... ok
+test store::tests::test_run_eviction_oldest ... ok
+test store::tests::test_run_eviction_boundary_at_max ... ok
+
+test result: ok. 63 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/test_edge_cases.rs (target/debug/deps/test_edge_cases-e2fe410ccb202787)
+
+running 15 tests
+test test_batch_size_one_accepted ... ok
+test test_batch_size_zero_rejected ... ok
+test test_cross_layer_analysis_preserved ... ok
+test test_global_step_zero_accepted ... ok
+test test_concurrent_posts_same_run ... ok
+test test_health_response_format ... ok
+test test_layer_groups_with_dots ... ok
+test test_multiple_layers_all_sanitized ... ok
+test test_metrics_accepted_response_format ... ok
+test test_run_endpoint_steps_is_array ... ok
+test test_runs_endpoint_returns_object_not_array ... ok
+test test_run_info_latest_step_null_for_empty ... ok
+test test_timestamp_negative_rejected ... ok
+test test_timestamp_zero_rejected ... ok
+test test_very_large_global_step ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/test_error_responses.rs (target/debug/deps/test_error_responses-104a7405c057a1ff)
+
+running 12 tests
+test test_404_content_type_json ... ok
+test test_404_error_value_not_found ... ok
+test test_404_has_error_key ... ok
+test test_404_has_message_key ... ok
+test test_422_content_type_json ... ok
+test test_404_message_includes_run_id ... ok
+test test_404_is_dict_format ... ok
+test test_422_has_loc_field ... ok
+test test_422_has_msg_field ... ok
+test test_422_is_list_format ... ok
+test test_422_has_type_field ... ok
+test test_422_missing_required_field ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/test_metrics_endpoint.rs (target/debug/deps/test_metrics_endpoint-a97d518acfb2bfa8)
+
+running 15 tests
+test test_empty_run_id ... ok
+test test_empty_layer_statistics ... ok
+test test_infinity_rejected ... ok
+test test_invalid_json ... ok
+test test_missing_field ... ok
+test test_duplicate_step_replaces ... ok
+test test_nan_rejected ... ok
+test test_negative_rejected ... ok
+test test_short_activation_shape ... ok
+test test_valid_metrics_accepted ... ok
+test test_optional_bias_null ... ok
+test test_valid_with_layer_groups ... ok
+test test_multiple_runs ... ok
+test test_unsorted_depth_index ... ok
+test test_zero_values_accepted ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/test_runs_endpoint.rs (target/debug/deps/test_runs_endpoint-caa632d586d93c31)
+
+running 15 tests
+test test_get_run_not_found ... ok
+test test_get_run_by_id ... ok
+test test_health_active_connections_type ... ok
+test test_empty_runs ... ok
+test test_health_endpoint ... ok
+test test_latest_step_has_layers ... ok
+test test_latest_step ... ok
+test test_latest_step_not_found ... ok
+test test_run_info_fields ... ok
+test test_run_data_has_steps ... ok
+test test_runs_after_multiple_posts ... ok
+test test_single_run ... ok
+test test_multiple_runs ... ok
+test test_step_count_increments ... ok
+test test_step_count_with_duplicate ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/test_storage.rs (target/debug/deps/test_storage-f0a3418644c8ca30)
+
+running 15 tests
+test test_empty_store_get_all_runs ... ok
+test test_latest_step_after_dedup ... ok
+test test_layer_id_sanitization_dots_to_slashes ... ok
+test test_layer_groups_values_sanitized ... ok
+test test_created_at_preserved_on_dedup ... ok
+test test_multiple_runs_dedup_independent ... ok
+test test_run_eviction_after_max ... ok
+test test_step_dedup_in_middle ... ok
+test test_step_dedup_no_count_increment ... ok
+test test_step_dedup_preserves_ordering ... ok
+test test_duplicate_step_updates_last_update ... ok
+test test_step_dedup_replaces_data ... ok
+test test_run_eviction_oldest_by_last_update ... ok
+test test_step_eviction_after_max ... ok
+test test_step_eviction_keeps_latest ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+
+     Running tests/test_websocket.rs (target/debug/deps/test_websocket-cfca36d929186b2c)
+
+running 12 tests
+test test_ws_connect_and_initial_runs ... ok
+test test_ws_broadcast_new_metrics ... ok
+test test_ws_invalid_json ... ok
+test test_ws_full_mode_includes_all_fields ... ok
+test test_ws_ping_pong ... ok
+test test_ws_multiple_clients_broadcast ... ok
+test test_ws_disconnect_decrements_count ... ok
+test test_ws_subscribe_run_not_found ... ok
+test test_ws_initial_runs_contains_existing_runs ... ok
+test test_ws_subscribe_run_existing ... ok
+test test_ws_subscribe_run_lite_mode ... ok
+test test_ws_unknown_action_ignored ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.52s
+
+   Doc-tests nn_monitor_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

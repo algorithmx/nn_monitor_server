@@ -1,0 +1,9 @@
+=== SCENARIO 1: Empty State ===
+--- /health ---
+{
+    "status": "healthy",
+    "active_connections": 0
+}
+
+--- /api/v1/runs ---
+{}

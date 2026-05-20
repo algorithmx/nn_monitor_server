@@ -1,0 +1,3 @@
+=== SCENARIO 5: Not Found ===
+{"detail":{"error":"not_found","message":"Run 'nonexistent' not found"}}
+HTTP: 404

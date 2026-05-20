@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::sync::broadcast;
 
+use serde::Serialize;
 use serde_json::{json, Value};
 
 use crate::models::{RunData, RunInfo, StepData};
@@ -68,6 +69,15 @@ impl WsManager {
 
 // ==================== Message Builders ====================
 
+#[derive(Serialize)]
+struct TypedMessage<'a, T: Serialize + ?Sized> {
+    #[serde(rename = "type")]
+    message_type: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    run_id: Option<&'a str>,
+    data: &'a T,
+}
+
 /// Build `initial_runs` message sent on WebSocket connect.
 pub fn build_initial_runs_message(runs: &std::collections::HashMap<String, RunInfo>) -> String {
     let runs_map: serde_json::Map<String, Value> = runs
@@ -84,22 +94,22 @@ pub fn build_initial_runs_message(runs: &std::collections::HashMap<String, RunIn
 
 /// Build `new_metrics` broadcast message.
 pub fn build_new_metrics_message(run_id: &str, step_data: &StepData) -> String {
-    json!({
-        "type": "new_metrics",
-        "run_id": run_id,
-        "data": step_data
-    })
-    .to_string()
+    let msg = TypedMessage {
+        message_type: "new_metrics",
+        run_id: Some(run_id),
+        data: step_data,
+    };
+    serde_json::to_string(&msg).expect("new_metrics serialization should never fail")
 }
 
 /// Build `run_history` message for full (non-lite) subscribe_run response.
 pub fn build_run_history_message(run_id: &str, run_data: &RunData) -> String {
-    json!({
-        "type": "run_history",
-        "run_id": run_id,
-        "data": run_data
-    })
-    .to_string()
+    let msg = TypedMessage {
+        message_type: "run_history",
+        run_id: Some(run_id),
+        data: run_data,
+    };
+    serde_json::to_string(&msg).expect("run_history serialization should never fail")
 }
 
 // ==================== Compact / Lite Helpers ====================

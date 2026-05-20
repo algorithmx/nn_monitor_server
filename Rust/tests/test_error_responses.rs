@@ -13,10 +13,7 @@ async fn test_422_is_list_format() {
         .await;
     assert_eq!(response.status_code(), StatusCode::UNPROCESSABLE_ENTITY);
     let body: serde_json::Value = response.json();
-    assert!(
-        body["detail"].is_array(),
-        "422 detail should be an array"
-    );
+    assert!(body["detail"].is_array(), "422 detail should be an array");
 }
 
 #[tokio::test]
@@ -28,7 +25,10 @@ async fn test_422_has_loc_field() {
         .await;
     let body: serde_json::Value = response.json();
     let detail = body["detail"].as_array().unwrap();
-    assert!(detail[0].get("loc").is_some(), "error should have loc field");
+    assert!(
+        detail[0].get("loc").is_some(),
+        "error should have loc field"
+    );
     assert_eq!(detail[0]["loc"], serde_json::json!(["body"]));
 }
 
@@ -41,7 +41,10 @@ async fn test_422_has_msg_field() {
         .await;
     let body: serde_json::Value = response.json();
     let detail = body["detail"].as_array().unwrap();
-    assert!(detail[0].get("msg").is_some(), "error should have msg field");
+    assert!(
+        detail[0].get("msg").is_some(),
+        "error should have msg field"
+    );
     assert!(detail[0]["msg"].is_string());
 }
 
@@ -67,10 +70,7 @@ async fn test_404_is_dict_format() {
     let response = server.get("/api/v1/runs/nonexistent").await;
     assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
     let body: serde_json::Value = response.json();
-    assert!(
-        body["detail"].is_object(),
-        "404 detail should be an object"
-    );
+    assert!(body["detail"].is_object(), "404 detail should be an object");
 }
 
 #[tokio::test]

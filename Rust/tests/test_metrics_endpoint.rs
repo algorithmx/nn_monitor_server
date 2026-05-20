@@ -27,10 +27,7 @@ async fn test_invalid_json() {
     assert_eq!(response.status_code(), StatusCode::UNPROCESSABLE_ENTITY);
     let body: serde_json::Value = response.json();
     let detail = body["detail"].as_array().expect("detail should be array");
-    assert!(detail[0]["msg"]
-        .as_str()
-        .unwrap()
-        .contains("Invalid JSON"));
+    assert!(detail[0]["msg"].as_str().unwrap().contains("Invalid JSON"));
     assert_eq!(detail[0]["type"], "json_invalid");
 }
 
@@ -53,10 +50,7 @@ async fn test_missing_field() {
     assert_eq!(response.status_code(), StatusCode::UNPROCESSABLE_ENTITY);
     let body: serde_json::Value = response.json();
     let detail = body["detail"].as_array().expect("detail should be array");
-    assert!(detail[0]["msg"]
-        .as_str()
-        .unwrap()
-        .contains("batch_size"));
+    assert!(detail[0]["msg"].as_str().unwrap().contains("batch_size"));
 }
 
 #[tokio::test]
@@ -232,8 +226,7 @@ async fn test_short_activation_shape() {
 async fn test_valid_with_layer_groups() {
     let server = TestServer::new(build_test_app()).unwrap();
     let mut payload = valid_payload();
-    payload["metadata"]["layer_groups"] =
-        serde_json::json!({"encoder": ["layer1"]});
+    payload["metadata"]["layer_groups"] = serde_json::json!({"encoder": ["layer1"]});
     let response = server
         .post("/api/v1/metrics/layerwise")
         .json(&payload)
@@ -249,8 +242,7 @@ async fn test_zero_values_accepted() {
     let mut payload = valid_payload();
     payload["layer_statistics"][0]["intermediate_features"]["activation_std"] =
         serde_json::json!(0.0);
-    payload["layer_statistics"][0]["gradient_flow"]["gradient_l2_norm"] =
-        serde_json::json!(0.0);
+    payload["layer_statistics"][0]["gradient_flow"]["gradient_l2_norm"] = serde_json::json!(0.0);
     let response = server
         .post("/api/v1/metrics/layerwise")
         .json(&payload)

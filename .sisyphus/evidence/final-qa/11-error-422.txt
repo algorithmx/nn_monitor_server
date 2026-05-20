@@ -1,0 +1,2 @@
+{"detail":[{"loc":["body"],"msg":"missing field `metadata` at line 1 column 15","type":"value_error"}]}
+---HTTP_STATUS:422---

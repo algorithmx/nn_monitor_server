@@ -1,0 +1,13 @@
+=== SCENARIO 7: Step Dedup ===
+--- POST #1 (step 100) ---
+{"status":"accepted","run_id":"dedup_test"}
+HTTP: 202
+
+--- POST #2 (same step 100 - duplicate) ---
+{"status":"accepted","run_id":"dedup_test"}
+HTTP: 202
+
+--- GET run to check step count ---
+step_count=1
+  step=100, timestamp=2.0
+

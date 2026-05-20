@@ -1,8 +1,8 @@
 mod config;
 mod models;
+mod routes;
 mod store;
 mod ws;
-mod routes;
 
 use std::sync::Arc;
 

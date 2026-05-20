@@ -1,0 +1,39 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]: nn_monitor
+    - generic [ref=e4]:
+      - generic [ref=e6]: live
+      - button "⚙ Open configuration panel" [ref=e7] [cursor=pointer]
+  - generic [ref=e8]:
+    - generic [ref=e9]:
+      - generic [ref=e11]: Live
+      - text: Live mode shows real-time updates. Paused mode lets you browse historical steps.
+    - button "⏸ Pause Toggle between live and paused mode" [ref=e12]
+    - generic:
+      - button "⏮ Jump to the first recorded step"
+      - button "◀ Go to previous step"
+      - button "▶ Go to next step"
+      - button "⏭ Jump to the latest step"
+    - generic [ref=e13]:
+      - slider [disabled] [ref=e14]: 0 Drag to navigate through training history
+      - generic [ref=e15]: —
+  - main [ref=e16]:
+    - complementary [ref=e17]:
+      - generic [ref=e18]:
+        - generic [ref=e19]: Run
+        - combobox [ref=e20] [cursor=pointer]:
+          - option "select run..." [selected]
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - generic [ref=e24]: step
+          - generic [ref=e25]: —
+          - text: Current training step number being displayed
+        - generic [ref=e26]:
+          - generic [ref=e27]: layers
+          - generic [ref=e28]: —
+          - text: Number of layers in the monitored model
+        - generic [ref=e29]:
+          - generic [ref=e30]: updated
+          - generic [ref=e31]: —
+          - text: Last time this data was updated
+    - generic [ref=e33]: ◷ awaiting data...

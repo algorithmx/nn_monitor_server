@@ -1,0 +1,64 @@
+warning: fields `max_request_size` and `cors_origins` are never read
+  --> src/config.rs:38:9
+   |
+32 | pub struct ServerConfig {
+   |            ------------ fields in this struct
+...
+38 |     pub max_request_size: usize,
+   |         ^^^^^^^^^^^^^^^^
+...
+46 |     pub cors_origins: Vec<String>,
+   |         ^^^^^^^^^^^^
+   |
+   = note: `ServerConfig` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: associated items `value` and `new` are never used
+  --> src/models.rs:11:12
+   |
+10 | impl FiniteF64 {
+   | -------------- associated items in this implementation
+11 |     pub fn value(&self) -> f64 {
+   |            ^^^^^
+...
+14 |     pub fn new(v: f64) -> Result<Self, String> {
+   |            ^^^
+
+warning: method `value` is never used
+  --> src/models.rs:59:12
+   |
+58 | impl NonNegativeF64 {
+   | ------------------- method in this implementation
+59 |     pub fn value(&self) -> f64 {
+   |            ^^^^^
+
+warning: field `cross_layer_analysis` is never read
+   --> src/models.rs:162:9
+    |
+159 | pub struct MetricsPayload {
+    |            -------------- field in this struct
+...
+162 |     pub cross_layer_analysis: CrossLayerAnalysis,
+    |         ^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `MetricsPayload` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: struct `ErrorDetail` is never constructed
+   --> src/models.rs:248:12
+    |
+248 | pub struct ErrorDetail {
+    |            ^^^^^^^^^^^
+
+warning: field `config` is never read
+  --> src/routes/mod.rs:13:9
+   |
+10 | pub struct AppState {
+   |            -------- field in this struct
+...
+13 |     pub config: crate::config::ServerConfig,
+   |         ^^^^^^
+   |
+   = note: `AppState` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: `nn_monitor_server` (bin "nn_monitor_server") generated 6 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.20s

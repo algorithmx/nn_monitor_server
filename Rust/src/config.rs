@@ -52,3 +52,84 @@ impl ServerConfig {
         envy::prefixed("NN_MONITOR_").from_env::<ServerConfig>()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_max_runs() {
+        assert_eq!(default_max_runs(), 10);
+    }
+
+    #[test]
+    fn test_default_max_steps_per_run() {
+        assert_eq!(default_max_steps_per_run(), 1000);
+    }
+
+    #[test]
+    fn test_default_max_request_size() {
+        assert_eq!(default_max_request_size(), 2_000_000);
+    }
+
+    #[test]
+    fn test_default_host() {
+        assert_eq!(default_host(), "0.0.0.0");
+    }
+
+    #[test]
+    fn test_default_port() {
+        assert_eq!(default_port(), 8000);
+    }
+
+    #[test]
+    fn test_default_log_level() {
+        assert_eq!(default_log_level(), "warning");
+    }
+
+    #[test]
+    fn test_default_cors_origins() {
+        assert_eq!(default_cors_origins(), vec!["*"]);
+    }
+
+    #[test]
+    fn test_config_deserialize_with_defaults() {
+        let config: ServerConfig =
+            serde_json::from_value(serde_json::json!({})).expect("empty JSON should deserialize");
+        assert_eq!(config.max_runs, 10);
+        assert_eq!(config.max_steps_per_run, 1000);
+        assert_eq!(config.max_request_size, 2_000_000);
+        assert_eq!(config.host, "0.0.0.0");
+        assert_eq!(config.port, 8000);
+        assert_eq!(config.log_level, "warning");
+        assert_eq!(config.cors_origins, vec!["*"]);
+    }
+
+    #[test]
+    fn test_config_deserialize_partial() {
+        let config: ServerConfig = serde_json::from_value(serde_json::json!({ "max_runs": 5 }))
+            .expect("partial JSON should deserialize");
+        assert_eq!(config.max_runs, 5);
+        assert_eq!(config.max_steps_per_run, 1000);
+        assert_eq!(config.max_request_size, 2_000_000);
+        assert_eq!(config.host, "0.0.0.0");
+        assert_eq!(config.port, 8000);
+        assert_eq!(config.log_level, "warning");
+        assert_eq!(config.cors_origins, vec!["*"]);
+    }
+
+    #[test]
+    fn test_config_load_does_not_panic_without_env() {
+        // dotenvy::dotenv().ok() silently ignores missing .env,
+        // and envy reads from the current process environment,
+        // so load() should succeed with defaults regardless.
+        let config = ServerConfig::load().expect("load without env vars should succeed");
+        assert_eq!(config.max_runs, 10);
+        assert_eq!(config.max_steps_per_run, 1000);
+        assert_eq!(config.max_request_size, 2_000_000);
+        assert_eq!(config.host, "0.0.0.0");
+        assert_eq!(config.port, 8000);
+        assert_eq!(config.log_level, "warning");
+        assert_eq!(config.cors_origins, vec!["*"]);
+    }
+}

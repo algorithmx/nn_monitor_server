@@ -1,0 +1,67 @@
+{
+  "active_plan": "/home/dabajabaza/Nutstore/Work/Project/nn_monitor_server/.sisyphus/plans/performance-enhancement.md",
+  "started_at": "2026-05-14T13:15:09.399Z",
+  "session_ids": [
+    "ses_1d97a1b06ffeDZ07D1UpSkwLdb",
+    "ses_1d94a9a47ffepuX6RvfDDQ2LLB",
+    "ses_1d94a5ae7ffeYNv9QmSVaa1yAo",
+    "ses_1d949fb3cffenMn0Ft1gNbNeDn",
+    "ses_1d949bca4ffefS57OGgBZRGoXd"
+  ],
+  "session_origins": {
+    "ses_1d97a1b06ffeDZ07D1UpSkwLdb": "direct",
+    "ses_1d94a9a47ffepuX6RvfDDQ2LLB": "appended",
+    "ses_1d94a5ae7ffeYNv9QmSVaa1yAo": "appended",
+    "ses_1d949fb3cffenMn0Ft1gNbNeDn": "appended",
+    "ses_1d949bca4ffefS57OGgBZRGoXd": "appended"
+  },
+  "plan_name": "performance-enhancement",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Cargo.toml Cleanup + Release Profile",
+      "session_id": "ses_1d95e3b3dffeTgaZ2L6rJOOe4j",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-14T13:17:57.535Z"
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Fix Broadcast Signature",
+      "session_id": "ses_1d95b716bffeUWnQlaZXAe4iZO",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-05-14T13:21:04.674Z"
+    },
+    "todo:3": {
+      "task_key": "todo:3",
+      "task_label": "3",
+      "task_title": "P0 — Eliminate Double Parse + Typed build_step_data + Lock Optimization",
+      "session_id": "ses_1d9582d64ffeTVwF0xVhRaTG7A",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-14T13:28:30.022Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "P1/P2 — hashbrown + binary_search + Arc Removal + Cow + now_iso Reduction",
+      "session_id": "ses_1d951904affe1xp2JnNXoOYt6n",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-05-14T13:34:39.012Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "**Plan Compliance Audit** — `oracle`",
+      "session_id": "ses_1d949bca4ffefS57OGgBZRGoXd",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-05-14T13:46:02.882Z"
+    }
+  }
+}
