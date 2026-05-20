@@ -147,7 +147,7 @@ pub struct LayerStatistic {
     pub parameter_statistics: ParameterStatistics,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CrossLayerAnalysis {
     pub feature_std_gradient: FiniteF64,
     pub gradient_norm_ratio: std::collections::HashMap<String, f64>,
@@ -224,8 +224,8 @@ pub struct StepData {
     pub step: u64,
     pub timestamp: f64,
     pub batch_size: u32,
-    pub layers: Vec<serde_json::Value>,
-    pub cross_layer: serde_json::Value,
+    pub layers: Vec<LayerStatistic>,
+    pub cross_layer: CrossLayerAnalysis,
     pub layer_groups: Option<std::collections::HashMap<String, Vec<String>>>,
 }
 
@@ -240,6 +240,11 @@ pub struct RunData {
 pub struct HealthResponse {
     pub status: String,
     pub active_connections: u32,
+    pub ingest_queue_depth: usize,
+    pub ingest_queue_capacity: usize,
+    pub accepted_count: u64,
+    pub processed_count: u64,
+    pub dropped_count: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]

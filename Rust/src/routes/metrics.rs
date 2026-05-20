@@ -3,6 +3,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use serde_json::json;
+use tokio::sync::mpsc::error::TrySendError;
 
 use super::AppState;
 
@@ -28,8 +29,27 @@ pub async fn post_metrics(State(state): State<AppState>, body: Bytes) -> impl In
         return (StatusCode::UNPROCESSABLE_ENTITY, axum::Json(error_detail)).into_response();
     }
 
-    let (run_id, msg) = state.store.add_validated_metrics_and_message(payload).await;
-    state.ws_manager.broadcast(msg);
+    let run_id = payload.metadata.run_id.clone();
+    match state
+        .ingest_tx
+        .try_send(crate::ingest::IngestItem { payload })
+    {
+        Ok(()) => state.ingest_stats.mark_accepted(),
+        Err(TrySendError::Full(_)) => {
+            state.ingest_stats.mark_dropped();
+            let error_detail = json!({
+                "detail": {"error": "ingest_queue_full", "message": "Ingest queue is full"}
+            });
+            return (StatusCode::SERVICE_UNAVAILABLE, axum::Json(error_detail)).into_response();
+        }
+        Err(TrySendError::Closed(_)) => {
+            state.ingest_stats.mark_dropped();
+            let error_detail = json!({
+                "detail": {"error": "ingest_closed", "message": "Ingest worker is not running"}
+            });
+            return (StatusCode::SERVICE_UNAVAILABLE, axum::Json(error_detail)).into_response();
+        }
+    }
 
     let response = crate::models::MetricsAcceptedResponse {
         status: "accepted".to_string(),

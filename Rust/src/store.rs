@@ -7,7 +7,7 @@ use serde::ser::{SerializeMap, Serializer};
 use serde::Serialize;
 use tokio::sync::RwLock;
 
-use crate::models::{MetricsPayload, RunData, RunInfo, StepData};
+use crate::models::{LayerStatistic, MetricsPayload, RunData, RunInfo, StepData};
 
 // ==================== In-Memory Storage =====================
 
@@ -25,9 +25,70 @@ fn now_iso() -> String {
 }
 
 pub struct MetricsStore {
-    runs: RwLock<HashMap<String, RunData>>,
+    state: RwLock<StoreState>,
     max_runs: usize,
     max_steps_per_run: usize,
+}
+
+struct StoreState {
+    runs: HashMap<String, RunData>,
+    runs_json: String,
+    initial_runs_message: String,
+    run_json: HashMap<String, String>,
+    latest_step_json: HashMap<String, String>,
+    full_history_message: HashMap<String, String>,
+    lite_history_message: HashMap<String, String>,
+}
+
+impl StoreState {
+    fn new() -> Self {
+        let runs = HashMap::new();
+        Self {
+            runs_json: serialize_run_summaries(&runs),
+            initial_runs_message: serialize_initial_runs_message(&runs),
+            runs,
+            run_json: HashMap::new(),
+            latest_step_json: HashMap::new(),
+            full_history_message: HashMap::new(),
+            lite_history_message: HashMap::new(),
+        }
+    }
+
+    fn refresh_summary_cache(&mut self) {
+        self.runs_json = serialize_run_summaries(&self.runs);
+        self.initial_runs_message = serialize_initial_runs_message(&self.runs);
+    }
+
+    fn refresh_run_cache(&mut self, run_id: &str) {
+        if let Some(run) = self.runs.get(run_id) {
+            if let Some(step) = run.steps.last() {
+                self.latest_step_json.insert(
+                    run_id.to_string(),
+                    serde_json::to_string(step).expect("StepData serialization should never fail"),
+                );
+            } else {
+                self.latest_step_json.remove(run_id);
+            }
+
+            // Full-history caches are expensive to rebuild. Mark them dirty and
+            // let readers rebuild lazily only when history is actually requested.
+            self.run_json.remove(run_id);
+            self.full_history_message.remove(run_id);
+            self.lite_history_message.remove(run_id);
+        } else {
+            self.run_json.remove(run_id);
+            self.latest_step_json.remove(run_id);
+            self.full_history_message.remove(run_id);
+            self.lite_history_message.remove(run_id);
+        }
+    }
+
+    fn remove_run_cache(&mut self, run_id: &str) {
+        self.run_json.remove(run_id);
+        self.latest_step_json.remove(run_id);
+        self.full_history_message.remove(run_id);
+        self.lite_history_message.remove(run_id);
+    }
 }
 
 #[derive(Serialize)]
@@ -66,10 +127,23 @@ struct InitialRunsMessage<'a> {
     data: RunSummaries<'a>,
 }
 
+fn serialize_run_summaries(runs: &HashMap<String, RunData>) -> String {
+    serde_json::to_string(&RunSummaries(runs))
+        .expect("run summaries serialization should never fail")
+}
+
+fn serialize_initial_runs_message(runs: &HashMap<String, RunData>) -> String {
+    let msg = InitialRunsMessage {
+        message_type: "initial_runs",
+        data: RunSummaries(runs),
+    };
+    serde_json::to_string(&msg).expect("initial_runs serialization should never fail")
+}
+
 impl MetricsStore {
     pub fn new(max_runs: usize, max_steps_per_run: usize) -> Self {
         Self {
-            runs: RwLock::new(HashMap::new()),
+            state: RwLock::new(StoreState::new()),
             max_runs,
             max_steps_per_run,
         }
@@ -103,23 +177,25 @@ impl MetricsStore {
     }
 
     async fn insert_step_data(&self, run_id: String, step_data: StepData) {
-        let mut runs = self.runs.write().await;
+        let mut state = self.state.write().await;
 
-        let is_new_run = !runs.contains_key(&run_id);
+        let is_new_run = !state.runs.contains_key(&run_id);
 
-        if is_new_run && runs.len() >= self.max_runs {
-            if let Some(oldest_key) = runs
+        if is_new_run && state.runs.len() >= self.max_runs {
+            if let Some(oldest_key) = state
+                .runs
                 .iter()
                 .min_by_key(|(_, run)| run.last_update.as_str())
                 .map(|(k, _)| k.clone())
             {
-                runs.remove(&oldest_key);
+                state.runs.remove(&oldest_key);
+                state.remove_run_cache(&oldest_key);
             }
         }
 
         if is_new_run {
             let now = now_iso();
-            runs.insert(
+            state.runs.insert(
                 run_id.clone(),
                 RunData {
                     created_at: now.clone(),
@@ -129,7 +205,7 @@ impl MetricsStore {
             );
         }
 
-        let run = runs.get_mut(&run_id).expect("run was just inserted");
+        let run = state.runs.get_mut(&run_id).expect("run was just inserted");
 
         let step = step_data.step;
         match run.steps.binary_search_by_key(&step, |s| s.step) {
@@ -145,24 +221,44 @@ impl MetricsStore {
         if !is_new_run {
             run.last_update = now_iso();
         }
+
+        state.refresh_run_cache(&run_id);
+        state.refresh_summary_cache();
     }
 
     pub async fn get_run(&self, run_id: &str) -> Option<RunData> {
-        let runs = self.runs.read().await;
-        runs.get(run_id).cloned()
+        let state = self.state.read().await;
+        state.runs.get(run_id).cloned()
     }
 
     pub async fn get_run_json(&self, run_id: &str) -> Option<String> {
-        let runs = self.runs.read().await;
-        runs.get(run_id)
-            .map(serde_json::to_string)
-            .transpose()
-            .expect("RunData serialization should never fail")
+        {
+            let state = self.state.read().await;
+            if let Some(cached) = state.run_json.get(run_id) {
+                return Some(cached.clone());
+            }
+            if !state.runs.contains_key(run_id) {
+                return None;
+            }
+        }
+
+        let mut state = self.state.write().await;
+        if let Some(cached) = state.run_json.get(run_id) {
+            return Some(cached.clone());
+        }
+        let body = {
+            let run = state.runs.get(run_id)?;
+            serde_json::to_string(run).expect("RunData serialization should never fail")
+        };
+        state.run_json.insert(run_id.to_string(), body.clone());
+        Some(body)
     }
 
     pub async fn get_all_runs(&self) -> StdHashMap<String, RunInfo> {
-        let runs = self.runs.read().await;
-        runs.iter()
+        let state = self.state.read().await;
+        state
+            .runs
+            .iter()
             .map(|(run_id, run)| {
                 (
                     run_id.clone(),
@@ -178,77 +274,84 @@ impl MetricsStore {
     }
 
     pub async fn get_all_runs_json(&self) -> String {
-        let runs = self.runs.read().await;
-        serde_json::to_string(&RunSummaries(&runs))
-            .expect("run summaries serialization should never fail")
+        let state = self.state.read().await;
+        state.runs_json.clone()
     }
 
     pub async fn get_latest_step(&self, run_id: &str) -> Option<StepData> {
-        let runs = self.runs.read().await;
-        runs.get(run_id).and_then(|run| run.steps.last().cloned())
+        let state = self.state.read().await;
+        state
+            .runs
+            .get(run_id)
+            .and_then(|run| run.steps.last().cloned())
     }
 
     pub async fn get_latest_step_json(&self, run_id: &str) -> Option<String> {
-        let runs = self.runs.read().await;
-        runs.get(run_id)
-            .and_then(|run| run.steps.last())
-            .map(serde_json::to_string)
-            .transpose()
-            .expect("StepData serialization should never fail")
+        let state = self.state.read().await;
+        state.latest_step_json.get(run_id).cloned()
     }
 
     pub async fn build_initial_runs_message(&self) -> String {
-        let runs = self.runs.read().await;
-        let msg = InitialRunsMessage {
-            message_type: "initial_runs",
-            data: RunSummaries(&runs),
-        };
-        serde_json::to_string(&msg).expect("initial_runs serialization should never fail")
+        let state = self.state.read().await;
+        state.initial_runs_message.clone()
     }
 
     pub async fn build_run_history_message(&self, run_id: &str, lite: bool) -> Option<String> {
-        let runs = self.runs.read().await;
-        let run_data = runs.get(run_id)?;
-        Some(if lite {
-            crate::ws::build_compact_run_history_message(run_id, run_data)
+        {
+            let state = self.state.read().await;
+            let cached = if lite {
+                state.lite_history_message.get(run_id)
+            } else {
+                state.full_history_message.get(run_id)
+            };
+            if let Some(cached) = cached {
+                return Some(cached.clone());
+            }
+            if !state.runs.contains_key(run_id) {
+                return None;
+            }
+        }
+
+        let mut state = self.state.write().await;
+        let cached = if lite {
+            state.lite_history_message.get(run_id)
         } else {
-            crate::ws::build_run_history_message(run_id, run_data)
-        })
+            state.full_history_message.get(run_id)
+        };
+        if let Some(cached) = cached {
+            return Some(cached.clone());
+        }
+
+        let msg = {
+            let run = state.runs.get(run_id)?;
+            if lite {
+                crate::ws::build_compact_run_history_message(run_id, run)
+            } else {
+                crate::ws::build_run_history_message(run_id, run)
+            }
+        };
+        if lite {
+            state
+                .lite_history_message
+                .insert(run_id.to_string(), msg.clone());
+        } else {
+            state
+                .full_history_message
+                .insert(run_id.to_string(), msg.clone());
+        }
+        Some(msg)
     }
 }
 
 /// Build StepData from validated payload, applying layer ID sanitization.
 fn build_step_data(payload: &MetricsPayload) -> StepData {
-    let sanitized_layers: Vec<serde_json::Value> = payload
+    let sanitized_layers: Vec<LayerStatistic> = payload
         .layer_statistics
         .iter()
         .map(|ls| {
-            let sanitized_id = sanitize_layer_id(&ls.layer_id);
-            serde_json::json!({
-                "layer_id": sanitized_id,
-                "layer_type": ls.layer_type,
-                "depth_index": ls.depth_index,
-                "intermediate_features": {
-                    "activation_std": ls.intermediate_features.activation_std,
-                    "activation_mean": ls.intermediate_features.activation_mean,
-                    "activation_shape": ls.intermediate_features.activation_shape,
-                    "cross_layer_std_ratio": ls.intermediate_features.cross_layer_std_ratio,
-                },
-                "gradient_flow": {
-                    "gradient_l2_norm": ls.gradient_flow.gradient_l2_norm,
-                    "gradient_std": ls.gradient_flow.gradient_std,
-                    "gradient_max_abs": ls.gradient_flow.gradient_max_abs,
-                },
-                "parameter_statistics": {
-                    "weight": {
-                        "std": ls.parameter_statistics.weight.std,
-                        "mean": ls.parameter_statistics.weight.mean,
-                        "spectral_norm": ls.parameter_statistics.weight.spectral_norm,
-                        "frobenius_norm": ls.parameter_statistics.weight.frobenius_norm,
-                    },
-                    "bias": ls.parameter_statistics.bias,
-                },
-            })
+            let mut layer = ls.clone();
+            layer.layer_id = sanitize_layer_id(&layer.layer_id).into_owned();
+            layer
         })
         .collect();
 
@@ -265,15 +368,12 @@ fn build_step_data(payload: &MetricsPayload) -> StepData {
             .collect()
     });
 
-    let cross_layer = serde_json::to_value(&payload.cross_layer_analysis)
-        .expect("cross_layer_analysis serialization should never fail");
-
     StepData {
         step: payload.metadata.global_step,
         timestamp: *payload.metadata.timestamp,
         batch_size: payload.metadata.batch_size,
         layers: sanitized_layers,
-        cross_layer,
+        cross_layer: payload.cross_layer_analysis.clone(),
         layer_groups: sanitized_layer_groups,
     }
 }
@@ -448,12 +548,7 @@ mod tests {
 
         let step = store.add_metrics(p).await;
 
-        let first_layer = &step.layers[0];
-        let layer_id = first_layer
-            .get("layer_id")
-            .expect("layer_id should exist")
-            .as_str()
-            .expect("layer_id should be string");
+        let layer_id = &step.layers[0].layer_id;
         assert_eq!(
             layer_id, "encoder/linear1",
             "layer_id dots should become slashes"
@@ -468,11 +563,7 @@ mod tests {
         assert_eq!(enc_ids[1], "encoder/relu/1");
 
         let run = store.get_run("run1").await.expect("run should exist");
-        let stored_layer_id = run.steps[0].layers[0]
-            .get("layer_id")
-            .expect("layer_id should exist")
-            .as_str()
-            .expect("layer_id should be string");
+        let stored_layer_id = &run.steps[0].layers[0].layer_id;
         assert_eq!(stored_layer_id, "encoder/linear1");
 
         let stored_groups = run.steps[0]
@@ -765,11 +856,7 @@ mod tests {
 
         let expected_ids = vec!["layer/0/weight", "layer/1/bias", "layer/2/norm"];
         for (i, expected) in expected_ids.iter().enumerate() {
-            let actual = step.layers[i]
-                .get("layer_id")
-                .expect("layer_id should exist")
-                .as_str()
-                .expect("layer_id should be string");
+            let actual = &step.layers[i].layer_id;
             assert_eq!(
                 actual, *expected,
                 "layer {} id should be sanitized: dots → slashes",
@@ -1038,8 +1125,7 @@ mod tests {
         let store = MetricsStore::new(10, 1000);
 
         let p = make_payload("run1", 42);
-        let expected_cross = serde_json::to_value(&p.cross_layer_analysis)
-            .expect("cross_layer_analysis serialization should never fail");
+        let expected_cross = p.cross_layer_analysis.clone();
 
         let step = store.add_metrics(p).await;
 

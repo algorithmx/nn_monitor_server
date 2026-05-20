@@ -27,6 +27,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 
     state.ws_manager.connect();
 
+    state.ingest_stats.wait_for_accepted_items().await;
     let initial_msg = state.store.build_initial_runs_message().await;
     if sender
         .send(Message::Text(initial_msg.into()))
@@ -93,6 +94,7 @@ async fn handle_client_message(
                     let run_id = data.get("run_id").and_then(|v| v.as_str()).unwrap_or("");
                     let lite = data.get("lite").and_then(|v| v.as_bool()).unwrap_or(false);
 
+                    state.ingest_stats.wait_for_accepted_items().await;
                     match state.store.build_run_history_message(run_id, lite).await {
                         Some(msg) => {
                             let _ = sender.send(Message::Text(msg.into())).await;

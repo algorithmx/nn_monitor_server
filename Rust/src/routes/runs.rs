@@ -10,6 +10,7 @@ fn json_body(body: String) -> impl IntoResponse {
 }
 
 pub async fn get_runs(State(state): State<AppState>) -> impl IntoResponse {
+    state.ingest_stats.wait_for_accepted_items().await;
     json_body(state.store.get_all_runs_json().await)
 }
 
@@ -17,6 +18,7 @@ pub async fn get_run(
     State(state): State<AppState>,
     Path(run_id): Path<String>,
 ) -> impl IntoResponse {
+    state.ingest_stats.wait_for_accepted_items().await;
     match state.store.get_run_json(&run_id).await {
         Some(run_data) => json_body(run_data).into_response(),
         None => {
@@ -32,6 +34,7 @@ pub async fn get_latest_step(
     State(state): State<AppState>,
     Path(run_id): Path<String>,
 ) -> impl IntoResponse {
+    state.ingest_stats.wait_for_accepted_items().await;
     match state.store.get_latest_step_json(&run_id).await {
         Some(step) => json_body(step).into_response(),
         None => {

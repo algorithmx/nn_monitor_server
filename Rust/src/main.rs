@@ -1,4 +1,5 @@
 mod config;
+mod ingest;
 mod models;
 mod routes;
 mod store;
@@ -45,9 +46,18 @@ async fn main() {
         config.max_steps_per_run,
     ));
     let ws_manager = Arc::new(ws::WsManager::new());
+    let (ingest_tx, ingest_rx, ingest_stats) = ingest::channel(config.ingest_queue_size);
+    let _ingest_worker = ingest::spawn_worker(
+        ingest_rx,
+        Arc::clone(&store),
+        Arc::clone(&ws_manager),
+        Arc::clone(&ingest_stats),
+    );
     let state = AppState {
         store,
         ws_manager,
+        ingest_tx,
+        ingest_stats,
         config: config.clone(),
     };
 
@@ -90,6 +100,7 @@ async fn main() {
     );
     println!("Max concurrent runs: {}", config.max_runs);
     println!("Max steps per run: {}", config.max_steps_per_run);
+    println!("Ingest queue size: {}", config.ingest_queue_size);
     println!("{}", "=".repeat(50));
 
     let listener = tokio::net::TcpListener::bind(format!("{}:{}", config.host, config.port))

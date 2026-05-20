@@ -117,90 +117,88 @@ pub fn build_run_history_message(run_id: &str, run_data: &RunData) -> String {
 // Lite mode strips heavy fields (activation_mean, activation_shape,
 // gradient_std, parameter_statistics) to keep run switching fast.
 
-/// Compact a single layer: keep only fields the dashboard needs.
-fn compact_layer(layer: &Value) -> Value {
-    let mut compact = serde_json::Map::new();
-    if let Some(obj) = layer.as_object() {
-        compact.insert(
-            "layer_id".into(),
-            obj.get("layer_id").cloned().unwrap_or(Value::Null),
-        );
-        compact.insert(
-            "layer_type".into(),
-            obj.get("layer_type").cloned().unwrap_or(Value::Null),
-        );
-        compact.insert(
-            "depth_index".into(),
-            obj.get("depth_index").cloned().unwrap_or(Value::Null),
-        );
-
-        // Compact intermediate_features
-        if let Some(ifeatures) = obj.get("intermediate_features").and_then(|v| v.as_object()) {
-            let mut cif = serde_json::Map::new();
-            cif.insert(
-                "activation_std".into(),
-                ifeatures
-                    .get("activation_std")
-                    .cloned()
-                    .unwrap_or(Value::from(0)),
-            );
-            cif.insert(
-                "cross_layer_std_ratio".into(),
-                ifeatures
-                    .get("cross_layer_std_ratio")
-                    .cloned()
-                    .unwrap_or(Value::Null),
-            );
-            compact.insert("intermediate_features".into(), Value::Object(cif));
-        }
-
-        // Compact gradient_flow
-        if let Some(gf) = obj.get("gradient_flow").and_then(|v| v.as_object()) {
-            let mut cgf = serde_json::Map::new();
-            cgf.insert(
-                "gradient_l2_norm".into(),
-                gf.get("gradient_l2_norm")
-                    .cloned()
-                    .unwrap_or(Value::from(0)),
-            );
-            cgf.insert(
-                "gradient_max_abs".into(),
-                gf.get("gradient_max_abs")
-                    .cloned()
-                    .unwrap_or(Value::from(0)),
-            );
-            compact.insert("gradient_flow".into(), Value::Object(cgf));
-        }
-    }
-    Value::Object(compact)
+#[derive(Serialize)]
+struct CompactIntermediateFeatures {
+    activation_std: crate::models::NonNegativeF64,
+    cross_layer_std_ratio: Option<crate::models::NonNegativeF64>,
 }
 
-/// Compact a single step: compact each layer, keep step metadata.
-fn compact_step(step: &StepData) -> Value {
-    let compact_layers: Vec<Value> = step.layers.iter().map(compact_layer).collect();
-    json!({
-        "step": step.step,
-        "timestamp": step.timestamp,
-        "batch_size": step.batch_size,
-        "layers": compact_layers,
-        "cross_layer": step.cross_layer,
-        "layer_groups": step.layer_groups,
-    })
+#[derive(Serialize)]
+struct CompactGradientFlow {
+    gradient_l2_norm: crate::models::NonNegativeF64,
+    gradient_max_abs: crate::models::NonNegativeF64,
+}
+
+#[derive(Serialize)]
+struct CompactLayer<'a> {
+    layer_id: &'a str,
+    layer_type: &'a str,
+    depth_index: u32,
+    intermediate_features: CompactIntermediateFeatures,
+    gradient_flow: CompactGradientFlow,
+}
+
+#[derive(Serialize)]
+struct CompactStep<'a> {
+    step: u64,
+    timestamp: f64,
+    batch_size: u32,
+    layers: Vec<CompactLayer<'a>>,
+    cross_layer: &'a crate::models::CrossLayerAnalysis,
+    layer_groups: &'a Option<std::collections::HashMap<String, Vec<String>>>,
+}
+
+/// Compact a single step: keep only fields the dashboard needs.
+fn compact_step(step: &StepData) -> CompactStep<'_> {
+    let layers = step
+        .layers
+        .iter()
+        .map(|layer| CompactLayer {
+            layer_id: &layer.layer_id,
+            layer_type: &layer.layer_type,
+            depth_index: layer.depth_index,
+            intermediate_features: CompactIntermediateFeatures {
+                activation_std: layer.intermediate_features.activation_std,
+                cross_layer_std_ratio: layer.intermediate_features.cross_layer_std_ratio,
+            },
+            gradient_flow: CompactGradientFlow {
+                gradient_l2_norm: layer.gradient_flow.gradient_l2_norm,
+                gradient_max_abs: layer.gradient_flow.gradient_max_abs,
+            },
+        })
+        .collect();
+
+    CompactStep {
+        step: step.step,
+        timestamp: step.timestamp,
+        batch_size: step.batch_size,
+        layers,
+        cross_layer: &step.cross_layer,
+        layer_groups: &step.layer_groups,
+    }
+}
+
+#[derive(Serialize)]
+struct CompactRunData<'a> {
+    created_at: &'a str,
+    last_update: &'a str,
+    steps: Vec<CompactStep<'a>>,
 }
 
 /// Build `run_history` message for lite/compact subscribe_run response.
 pub fn build_compact_run_history_message(run_id: &str, run_data: &RunData) -> String {
-    let compact_steps: Vec<Value> = run_data.steps.iter().map(compact_step).collect();
-    json!({
-        "type": "run_history",
-        "run_id": run_id,
-        "data": {
-            "created_at": run_data.created_at,
-            "last_update": run_data.last_update,
-            "steps": compact_steps,
-        }
-    })
-    .to_string()
+    let compact_steps: Vec<CompactStep<'_>> = run_data.steps.iter().map(compact_step).collect();
+    let data = CompactRunData {
+        created_at: &run_data.created_at,
+        last_update: &run_data.last_update,
+        steps: compact_steps,
+    };
+    let msg = TypedMessage {
+        message_type: "run_history",
+        run_id: Some(run_id),
+        data: &data,
+    };
+    serde_json::to_string(&msg).expect("compact run_history serialization should never fail")
 }
 
 // ==================== Utility Message Builders ====================
@@ -225,6 +223,43 @@ pub fn build_pong_message() -> String {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+
+    fn test_layer() -> crate::models::LayerStatistic {
+        serde_json::from_value(json!({
+            "layer_id": "l1",
+            "layer_type": "Linear",
+            "depth_index": 0,
+            "intermediate_features": {
+                "activation_std": 0.5,
+                "activation_mean": 0.1,
+                "activation_shape": [32, 64],
+                "cross_layer_std_ratio": 1.2
+            },
+            "gradient_flow": {
+                "gradient_l2_norm": 0.2,
+                "gradient_std": 0.01,
+                "gradient_max_abs": 0.05
+            },
+            "parameter_statistics": {
+                "weight": {
+                    "std": 0.04,
+                    "mean": 0.0,
+                    "spectral_norm": 1.0,
+                    "frobenius_norm": 0.5
+                },
+                "bias": null
+            }
+        }))
+        .expect("test layer should deserialize")
+    }
+
+    fn test_cross_layer() -> crate::models::CrossLayerAnalysis {
+        serde_json::from_value(json!({
+            "feature_std_gradient": -0.1,
+            "gradient_norm_ratio": {}
+        }))
+        .expect("test cross-layer analysis should deserialize")
+    }
 
     #[test]
     fn test_ws_manager_new() {
@@ -297,46 +332,31 @@ mod tests {
 
     #[test]
     fn test_compact_layer_strips_fields() {
-        let full_layer = json!({
-            "layer_id": "linear1",
-            "layer_type": "Linear",
-            "depth_index": 0,
-            "intermediate_features": {
-                "activation_std": 0.847,
-                "activation_mean": -0.023,
-                "activation_shape": [64, 256],
-                "cross_layer_std_ratio": 1.2
-            },
-            "gradient_flow": {
-                "gradient_l2_norm": 0.152,
-                "gradient_std": 0.0034,
-                "gradient_max_abs": 0.089
-            },
-            "parameter_statistics": {
-                "weight": {"std": 0.037}
-            }
-        });
-        let compact = compact_layer(&full_layer);
-        let obj = compact.as_object().unwrap();
+        let step = StepData {
+            step: 1,
+            timestamp: 1707589200.0,
+            batch_size: 64,
+            layers: vec![test_layer()],
+            cross_layer: test_cross_layer(),
+            layer_groups: None,
+        };
+        let compact = compact_step(&step);
+        let value = serde_json::to_value(compact).unwrap();
+        let obj = value["layers"][0].as_object().unwrap();
 
-        // Should keep these
         assert!(obj.contains_key("layer_id"));
         assert!(obj.contains_key("layer_type"));
         assert!(obj.contains_key("depth_index"));
         assert!(obj.contains_key("intermediate_features"));
         assert!(obj.contains_key("gradient_flow"));
-
-        // Should NOT keep parameter_statistics
         assert!(!obj.contains_key("parameter_statistics"));
 
-        // intermediate_features should only have activation_std + cross_layer_std_ratio
         let ifeatures = obj["intermediate_features"].as_object().unwrap();
         assert!(ifeatures.contains_key("activation_std"));
         assert!(ifeatures.contains_key("cross_layer_std_ratio"));
         assert!(!ifeatures.contains_key("activation_mean"));
         assert!(!ifeatures.contains_key("activation_shape"));
 
-        // gradient_flow should only have gradient_l2_norm + gradient_max_abs
         let gf = obj["gradient_flow"].as_object().unwrap();
         assert!(gf.contains_key("gradient_l2_norm"));
         assert!(gf.contains_key("gradient_max_abs"));
@@ -352,23 +372,8 @@ mod tests {
                 step: 1,
                 timestamp: 1707589200.0,
                 batch_size: 64,
-                layers: vec![json!({
-                    "layer_id": "l1",
-                    "layer_type": "Linear",
-                    "depth_index": 0,
-                    "intermediate_features": {
-                        "activation_std": 0.5,
-                        "activation_mean": 0.1,
-                        "activation_shape": [32, 64],
-                    },
-                    "gradient_flow": {
-                        "gradient_l2_norm": 0.2,
-                        "gradient_std": 0.01,
-                        "gradient_max_abs": 0.05,
-                    },
-                    "parameter_statistics": { "weight": { "std": 0.04 } }
-                })],
-                cross_layer: json!({"feature_std_gradient": -0.1}),
+                layers: vec![test_layer()],
+                cross_layer: test_cross_layer(),
                 layer_groups: None,
             }],
         };
@@ -407,7 +412,7 @@ mod tests {
             timestamp: 1707589200.0,
             batch_size: 32,
             layers: vec![],
-            cross_layer: json!(null),
+            cross_layer: test_cross_layer(),
             layer_groups: None,
         };
         let msg = build_new_metrics_message("run_1", &step);

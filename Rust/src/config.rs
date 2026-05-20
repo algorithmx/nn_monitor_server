@@ -12,6 +12,10 @@ fn default_max_request_size() -> usize {
     2_000_000
 }
 
+fn default_ingest_queue_size() -> usize {
+    4096
+}
+
 fn default_host() -> String {
     "0.0.0.0".to_string()
 }
@@ -36,6 +40,8 @@ pub struct ServerConfig {
     pub max_steps_per_run: usize,
     #[serde(default = "default_max_request_size")]
     pub max_request_size: usize,
+    #[serde(default = "default_ingest_queue_size")]
+    pub ingest_queue_size: usize,
     #[serde(default = "default_host")]
     pub host: String,
     #[serde(default = "default_port")]
@@ -73,6 +79,11 @@ mod tests {
     }
 
     #[test]
+    fn test_default_ingest_queue_size() {
+        assert_eq!(default_ingest_queue_size(), 4096);
+    }
+
+    #[test]
     fn test_default_host() {
         assert_eq!(default_host(), "0.0.0.0");
     }
@@ -99,6 +110,7 @@ mod tests {
         assert_eq!(config.max_runs, 10);
         assert_eq!(config.max_steps_per_run, 1000);
         assert_eq!(config.max_request_size, 2_000_000);
+        assert_eq!(config.ingest_queue_size, 4096);
         assert_eq!(config.host, "0.0.0.0");
         assert_eq!(config.port, 8000);
         assert_eq!(config.log_level, "warning");
@@ -112,6 +124,7 @@ mod tests {
         assert_eq!(config.max_runs, 5);
         assert_eq!(config.max_steps_per_run, 1000);
         assert_eq!(config.max_request_size, 2_000_000);
+        assert_eq!(config.ingest_queue_size, 4096);
         assert_eq!(config.host, "0.0.0.0");
         assert_eq!(config.port, 8000);
         assert_eq!(config.log_level, "warning");
@@ -127,6 +140,7 @@ mod tests {
         assert_eq!(config.max_runs, 10);
         assert_eq!(config.max_steps_per_run, 1000);
         assert_eq!(config.max_request_size, 2_000_000);
+        assert_eq!(config.ingest_queue_size, 4096);
         assert_eq!(config.host, "0.0.0.0");
         assert_eq!(config.port, 8000);
         assert_eq!(config.log_level, "warning");

@@ -5,13 +5,23 @@ use std::sync::Arc;
 pub fn build_test_app() -> Router {
     let store = Arc::new(nn_monitor_server::store::MetricsStore::new(10, 1000));
     let ws_manager = Arc::new(nn_monitor_server::ws::WsManager::new());
+    let (ingest_tx, ingest_rx, ingest_stats) = nn_monitor_server::ingest::channel(4096);
+    let _ingest_worker = nn_monitor_server::ingest::spawn_worker(
+        ingest_rx,
+        Arc::clone(&store),
+        Arc::clone(&ws_manager),
+        Arc::clone(&ingest_stats),
+    );
     let state = nn_monitor_server::routes::AppState {
         store,
         ws_manager,
+        ingest_tx,
+        ingest_stats,
         config: nn_monitor_server::config::ServerConfig {
             max_runs: 10,
             max_steps_per_run: 1000,
             max_request_size: 2_000_000,
+            ingest_queue_size: 4096,
             host: "0.0.0.0".to_string(),
             port: 8000,
             log_level: "warning".to_string(),
