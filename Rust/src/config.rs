@@ -32,6 +32,14 @@ fn default_cors_origins() -> Vec<String> {
     vec!["*".to_string()]
 }
 
+fn default_data_dir() -> String {
+    "./data".to_string()
+}
+
+fn default_flush_timeout_secs() -> u64 {
+    300
+}
+
 #[derive(Deserialize, Debug, Clone)]
 pub struct ServerConfig {
     #[serde(default = "default_max_runs")]
@@ -50,6 +58,10 @@ pub struct ServerConfig {
     pub log_level: String,
     #[serde(default = "default_cors_origins")]
     pub cors_origins: Vec<String>,
+    #[serde(default = "default_data_dir")]
+    pub data_dir: String,
+    #[serde(default = "default_flush_timeout_secs")]
+    pub flush_timeout_secs: u64,
 }
 
 impl ServerConfig {
@@ -104,6 +116,16 @@ mod tests {
     }
 
     #[test]
+    fn test_default_data_dir() {
+        assert_eq!(default_data_dir(), "./data");
+    }
+
+    #[test]
+    fn test_default_flush_timeout_secs() {
+        assert_eq!(default_flush_timeout_secs(), 300);
+    }
+
+    #[test]
     fn test_config_deserialize_with_defaults() {
         let config: ServerConfig =
             serde_json::from_value(serde_json::json!({})).expect("empty JSON should deserialize");
@@ -115,6 +137,8 @@ mod tests {
         assert_eq!(config.port, 8000);
         assert_eq!(config.log_level, "warning");
         assert_eq!(config.cors_origins, vec!["*"]);
+        assert_eq!(config.data_dir, "./data");
+        assert_eq!(config.flush_timeout_secs, 300);
     }
 
     #[test]
@@ -129,6 +153,8 @@ mod tests {
         assert_eq!(config.port, 8000);
         assert_eq!(config.log_level, "warning");
         assert_eq!(config.cors_origins, vec!["*"]);
+        assert_eq!(config.data_dir, "./data");
+        assert_eq!(config.flush_timeout_secs, 300);
     }
 
     #[test]
@@ -145,5 +171,7 @@ mod tests {
         assert_eq!(config.port, 8000);
         assert_eq!(config.log_level, "warning");
         assert_eq!(config.cors_origins, vec!["*"]);
+        assert_eq!(config.data_dir, "./data");
+        assert_eq!(config.flush_timeout_secs, 300);
     }
 }

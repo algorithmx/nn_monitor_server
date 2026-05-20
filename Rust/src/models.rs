@@ -219,7 +219,7 @@ pub struct RunInfo {
     pub latest_step: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepData {
     pub step: u64,
     pub timestamp: f64,
@@ -229,7 +229,7 @@ pub struct StepData {
     pub layer_groups: Option<std::collections::HashMap<String, Vec<String>>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunData {
     pub created_at: String,
     pub last_update: String,
@@ -251,6 +251,46 @@ pub struct HealthResponse {
 pub struct ErrorDetail {
     pub error: String,
     pub message: String,
+}
+
+/// Sanitize a run_id for safe use as a file or directory name.
+///
+/// Replaces path separators, null bytes, `..` sequences, and any character
+/// that is not alphanumeric, `-`, `_`, or `.` with `_`. Collapses `..` to a
+/// single `_`. Truncates to 255 chars. Returns `"unnamed"` if empty.
+pub fn sanitize_filename(run_id: &str) -> String {
+    // First collapse `..` sequences to a single `_`
+    let mut result = String::with_capacity(run_id.len());
+    let chars: Vec<char> = run_id.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if i + 1 < chars.len() && chars[i] == '.' && chars[i + 1] == '.' {
+            result.push('_');
+            i += 2;
+        } else {
+            let c = chars[i];
+            match c {
+                '/' | '\\' | '\0' => {
+                    result.push('_');
+                }
+                _ if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' => {
+                    result.push(c);
+                }
+                _ => {
+                    result.push('_');
+                }
+            }
+            i += 1;
+        }
+    }
+    if result.is_empty() {
+        return "unnamed".to_string();
+    }
+    result.truncate(255);
+    if result.is_empty() {
+        return "unnamed".to_string();
+    }
+    result
 }
 
 // ==================== Tests ====================
@@ -724,5 +764,65 @@ mod tests {
             "Empty layer_type should pass validation (no constraint defined)"
         );
         assert_eq!(payload.layer_statistics[0].layer_type, "");
+    }
+
+    #[test]
+    fn test_sanitize_filename_rejects_path_traversal() {
+        let result = sanitize_filename("../../etc/passwd");
+        assert!(!result.contains(".."), "should not contain ..: got {}", result);
+        assert!(!result.contains('/'), "should not contain /: got {}", result);
+    }
+
+    #[test]
+    fn test_sanitize_filename_replaces_slashes() {
+        let result = sanitize_filename("run/with\\slashes");
+        assert_eq!(result, "run_with_slashes");
+    }
+
+    #[test]
+    fn test_sanitize_filename_null_bytes() {
+        let result = sanitize_filename("run\x00id");
+        assert_eq!(result, "run_id");
+    }
+
+    #[test]
+    fn test_sanitize_filename_empty_string() {
+        let result = sanitize_filename("");
+        assert_eq!(result, "unnamed");
+    }
+
+    #[test]
+    fn test_sanitize_filename_normal_names() {
+        let result = sanitize_filename("experiment_2024");
+        assert_eq!(result, "experiment_2024");
+    }
+
+    #[test]
+    fn test_sanitize_filename_very_long_name() {
+        let long_name: String = "a".repeat(300);
+        let result = sanitize_filename(&long_name);
+        assert_eq!(result.len(), 255);
+    }
+
+    #[test]
+    fn test_stepdata_deserialize_roundtrip() {
+        let payload: MetricsPayload =
+            serde_json::from_value(valid_payload_json()).expect("payload should deserialize");
+        let layer_groups = payload.metadata.layer_groups.clone();
+        let step_data = StepData {
+            step: payload.metadata.global_step,
+            timestamp: *payload.metadata.timestamp,
+            batch_size: payload.metadata.batch_size,
+            layers: payload.layer_statistics,
+            cross_layer: payload.cross_layer_analysis,
+            layer_groups,
+        };
+        let json = serde_json::to_string(&step_data).expect("serialize StepData");
+        let roundtrip: StepData = serde_json::from_str(&json).expect("deserialize StepData");
+        assert_eq!(roundtrip.step, step_data.step);
+        assert_eq!(roundtrip.timestamp, step_data.timestamp);
+        assert_eq!(roundtrip.batch_size, step_data.batch_size);
+        assert_eq!(roundtrip.layers.len(), step_data.layers.len());
+        assert_eq!(roundtrip.cross_layer, step_data.cross_layer);
     }
 }
