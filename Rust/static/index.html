@@ -3,12 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#111111">
     <title>nn_monitor</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E◉%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
     <header>
-        <div class="brand">nn_monitor</div>
+        <div class="brand">
+            <span class="brand-icon">◉</span>
+            <span>nn_monitor</span>
+        </div>
         <div class="status">
             <span class="status-dot" id="statusDot"></span>
             <span id="statusText">connecting</span>
@@ -25,10 +30,10 @@
         <button class="btn-live live-active" id="btnLivePause" data-tooltip="Toggle between live and paused mode">⏸ Pause</button>
 
         <div class="nav-controls" id="navControls" style="opacity: 0.3; pointer-events: none;">
-            <button class="nav-btn" id="btnFirst" data-tooltip="Jump to the first recorded step">⏮</button>
-            <button class="nav-btn" id="btnPrev" data-tooltip="Go to previous step">◀</button>
-            <button class="nav-btn" id="btnNext" data-tooltip="Go to next step">▶</button>
-            <button class="nav-btn" id="btnLast" data-tooltip="Jump to the latest step">⏭</button>
+            <button class="nav-btn" id="btnFirst" data-tooltip="Jump to the first recorded step (Home)">⏮</button>
+            <button class="nav-btn" id="btnPrev" data-tooltip="Go to previous step (←)">◀</button>
+            <button class="nav-btn" id="btnNext" data-tooltip="Go to next step (→)">▶</button>
+            <button class="nav-btn" id="btnLast" data-tooltip="Jump to the latest step (End)">⏭</button>
         </div>
 
         <div class="step-slider-container">
@@ -75,7 +80,7 @@
     <div class="config-overlay" id="configPanel">
         <div class="config-panel">
             <div class="config-header">
-                <div class="config-title">Settings</div>
+                <div class="config-title">⚙ Settings</div>
                 <button class="config-close" id="configClose">&times;</button>
             </div>
             <div class="config-section">

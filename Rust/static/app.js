@@ -14,7 +14,9 @@ const state = {
     // Visualization config
     vizConfig: {
         gradScale: 1.0          // vertical scale multiplier for gradient norm in plots
-    }
+    },
+    // Render optimization
+    lastRenderFingerprint: null
 };
 
 const CONFIG = {
@@ -86,18 +88,18 @@ function handleMessage(msg) {
             }
 
             if (!state.currentRun && Object.keys(state.runs).length) {
-                selectRun(msg.run_id);
+                selectRun(msg.run_id, true);
             }
 
             if (msg.run_id === state.currentRun) {
                 resetTrainingTimeout();
                 addStep(msg.data);
 
-                // Update step_count based on actual steps array
-                if (state.runData && state.runData.steps) {
-                    state.runs[msg.run_id].step_count = state.runData.steps.length;
-                    state.runs[msg.run_id].last_update = new Date().toISOString();
-                    updateSelect();
+                if (state._autoSubscribed !== msg.run_id && state.runData && state.runData.steps && state.runData.steps.length === 1) {
+                    state._autoSubscribed = msg.run_id;
+                    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+                        state.ws.send(JSON.stringify({ action: 'subscribe_run', run_id: msg.run_id, lite: true }));
+                    }
                 }
 
                 // If in paused mode, update UI elements but don't disrupt the user's view
@@ -175,27 +177,25 @@ function updateSelect() {
     if (cur && state.runs[cur]) sel.value = cur;
 }
 
-function selectRun(id) {
+function selectRun(id, skipSubscribe) {
     state.currentRun = id;
     document.getElementById('runSelect').value = id;
     state.history = {};
-    state.runData = null;  // Clear previous run data to free memory
+    state.runData = null;
 
-    // Reset history navigation state
     state.isLiveMode = true;
     state.selectedStep = null;
     state.stepsList = [];
     state.isTrainingActive = true;
     state.lastSeenStep = null;
     state.lastViewedStep = null;
+    state.lastRenderFingerprint = null;
     resetTrainingTimeout();
 
     updateHistoryUI();
 
-    // Safely check WebSocket state before sending
-    if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+    if (!skipSubscribe && state.ws && state.ws.readyState === WebSocket.OPEN) {
         try {
-            // Request a lightweight history payload for fast run switching
             state.ws.send(JSON.stringify({ action: 'subscribe_run', run_id: id, lite: true }));
         } catch (err) {
             console.error('Failed to send subscribe_run message:', err);
@@ -372,6 +372,38 @@ document.getElementById('stepSlider').addEventListener('input', (e) => {
     }
 });
 
+// Keyboard shortcuts for history navigation
+document.addEventListener('keydown', (e) => {
+    // Ignore if typing in an input or if a modal is open
+    if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT')) return;
+    if (modal && modal.classList.contains('visible')) return;
+    if (configPanel && configPanel.classList.contains('visible')) return;
+
+    let handled = false;
+    switch (e.key) {
+        case 'ArrowLeft':
+            if (!state.isLiveMode) { navigateToStep('prev'); handled = true; }
+            break;
+        case 'ArrowRight':
+            if (!state.isLiveMode) { navigateToStep('next'); handled = true; }
+            break;
+        case 'Home':
+            if (!state.isLiveMode) { navigateToStep('first'); handled = true; }
+            break;
+        case 'End':
+            if (!state.isLiveMode) { navigateToStep('last'); handled = true; }
+            break;
+        case ' ':
+        case 'k':
+            toggleLiveMode();
+            handled = true;
+            break;
+    }
+    if (handled) {
+        e.preventDefault();
+    }
+});
+
 function addStep(stepData) {
     // Validate required fields to prevent runtime errors
     if (!stepData || typeof stepData !== 'object') {
@@ -465,15 +497,16 @@ function renderLayer(layer, groupName = null) {
     if (groupName && layer.layer_id.startsWith(groupName + '/')) {
         displayLayerId = layer.layer_id.slice(groupName.length + 1);
     }
+    const safeId = sanitizeLayerId(layer.layer_id);
     return `
-        <div class="layer ${health.class}">
+        <div class="layer ${health.class}" data-layer-id="${safeId}">
             <div class="layer-header">
                 <div>
                     <div class="layer-name" data-tooltip="Layer identifier: ${layer.layer_id}">${displayLayerId}</div>
                     <div class="layer-type" data-tooltip="Layer type: ${layer.layer_type}">${layer.layer_type}</div>
                 </div>
             </div>
-            <canvas class="pulse-viz" id="pulse-${sanitizeLayerId(layer.layer_id)}" data-tooltip="Historical trend: Green line = activation std, Purple line = gradient norm"></canvas>
+            <canvas class="pulse-viz" id="pulse-${safeId}" data-tooltip="Historical trend: Green line = activation std, Purple line = gradient norm"></canvas>
             <div class="metrics">
                 <div class="metric" data-tooltip="Standard deviation of layer activations. Measures the spread/variability of activations.">
                     <div class="metric-value ${health.act}">${formatScientific(layer.intermediate_features.activation_std, 2)}</div>
@@ -589,8 +622,106 @@ function renderLayerTree(tree, parentPrefix = '', skipFirstLevelHeader = false) 
     return html;
 }
 
+// Compute a structure fingerprint so we can skip full DOM rebuilds when only
+// metric values changed (same layers, same groups, same collapsed state).
+function getStructureFingerprint(displayStep) {
+    const parts = [];
+
+    if (displayStep.layer_groups) {
+        const keys = Object.keys(displayStep.layer_groups).sort();
+        for (const k of keys) {
+            parts.push(`${k}:[${displayStep.layer_groups[k].slice().sort().join(',')}]`);
+        }
+    }
+
+    parts.push(displayStep.layers.map(l => l.layer_id).join(','));
+    parts.push(Array.from(state.collapsedGroups).sort().join(','));
+
+    return parts.join('|');
+}
+
+function buildLayersHTML(displayStep) {
+    const layerGroups = displayStep.layer_groups || null;
+    let html = '';
+
+    if (layerGroups && Object.keys(layerGroups).length > 0) {
+        for (const [groupName, layerIds] of Object.entries(layerGroups)) {
+            const groupLayers = displayStep.layers.filter(l => layerIds.includes(l.layer_id));
+            if (groupLayers.length > 0) {
+                const tree = buildLayerTree(groupLayers);
+                const fullPath = `__predef__${groupName}`;
+                const isCollapsed = state.collapsedGroups.has(fullPath);
+                const expandIcon = isCollapsed ? '▶' : '▼';
+                html += `
+                    <div class="group-section">
+                        <div class="group-header expandable" onclick="toggleGroup('${fullPath}')">
+                            <span class="expand-icon">${expandIcon}</span>
+                            <span class="group-name">${groupName}</span>
+                        </div>
+                        ${!isCollapsed ? `<div class="group-content">${renderLayerTree(tree, groupName, true)}</div>` : ''}
+                    </div>
+                `;
+            }
+        }
+
+        const groupedLayerIds = new Set();
+        Object.values(layerGroups).forEach(ids => ids.forEach(id => groupedLayerIds.add(id)));
+        const ungroupedLayers = displayStep.layers.filter(l => !groupedLayerIds.has(l.layer_id));
+
+        if (ungroupedLayers.length > 0) {
+            const tree = buildLayerTree(ungroupedLayers);
+            const fullPath = '__predef__Ungrouped';
+            const isCollapsed = state.collapsedGroups.has(fullPath);
+            const expandIcon = isCollapsed ? '▶' : '▼';
+            html += `
+                <div class="group-section">
+                    <div class="group-header expandable" onclick="toggleGroup('${fullPath}')">
+                        <span class="expand-icon">${expandIcon}</span>
+                        <span class="group-name">Ungrouped</span>
+                    </div>
+                    ${!isCollapsed ? `<div class="group-content">${renderLayerTree(tree, '', false)}</div>` : ''}
+                </div>
+            `;
+        }
+    } else {
+        const tree = buildLayerTree(displayStep.layers);
+        html = renderLayerTree(tree, '', false);
+    }
+
+    return html;
+}
+
+// Update existing layer cards in-place instead of rebuilding the whole DOM.
+function updateLayersIncremental(displayStep) {
+    displayStep.layers.forEach(layer => {
+        const safeId = sanitizeLayerId(layer.layer_id);
+        const card = document.querySelector(`.layer[data-layer-id="${safeId}"]`);
+        if (!card) return;
+
+        const health = assessHealth(layer);
+
+        // Update card health border class
+        card.className = `layer ${health.class}`;
+
+        // Update metric text and color classes
+        const values = card.querySelectorAll('.metric-value');
+        if (values[0]) {
+            values[0].textContent = formatScientific(layer.intermediate_features.activation_std, 2);
+            values[0].className = `metric-value ${health.act}`;
+        }
+        if (values[1]) {
+            values[1].textContent = formatScientific(layer.gradient_flow.gradient_l2_norm, 2);
+            values[1].className = `metric-value ${health.grad}`;
+        }
+        if (values[2]) {
+            values[2].textContent = formatScientific(layer.intermediate_features.cross_layer_std_ratio, 2);
+            values[2].className = `metric-value ${health.ratio}`;
+        }
+    });
+}
+
 function render() {
-    if (!state.runData?.steps.length) return;
+    if (!state.runData || !state.runData.steps || !state.runData.steps.length) return;
 
     const steps = state.runData.steps;
 
@@ -625,61 +756,16 @@ function render() {
 
     // Render layers
     const container = document.getElementById('layers');
-    const layerGroups = displayStep.layer_groups || null;
+    const fingerprint = getStructureFingerprint(displayStep);
 
-    let html = '';
-
-    if (layerGroups && Object.keys(layerGroups).length > 0) {
-        // Render with predefined grouping, then apply recursive subgrouping
-        // Skip first level headers since predefined groups already show them
-        for (const [groupName, layerIds] of Object.entries(layerGroups)) {
-            const groupLayers = displayStep.layers.filter(l => layerIds.includes(l.layer_id));
-            if (groupLayers.length > 0) {
-                // Build tree for this group's layers to enable recursive subgrouping
-                const tree = buildLayerTree(groupLayers);
-                const fullPath = `__predef__${groupName}`;
-                const isCollapsed = state.collapsedGroups.has(fullPath);
-                const expandIcon = isCollapsed ? '▶' : '▼';
-                html += `
-                    <div class="group-section">
-                        <div class="group-header expandable" onclick="toggleGroup('${fullPath}')">
-                            <span class="expand-icon">${expandIcon}</span>
-                            <span class="group-name">${groupName}</span>
-                        </div>
-                        ${!isCollapsed ? `<div class="group-content">${renderLayerTree(tree, groupName, true)}</div>` : ''}
-                    </div>
-                `;
-            }
-        }
-        
-        // Handle ungrouped layers - don't skip first level since there's no predefined header
-        const groupedLayerIds = new Set();
-        Object.values(layerGroups).forEach(ids => ids.forEach(id => groupedLayerIds.add(id)));
-        const ungroupedLayers = displayStep.layers.filter(l => !groupedLayerIds.has(l.layer_id));
-        
-        if (ungroupedLayers.length > 0) {
-            const tree = buildLayerTree(ungroupedLayers);
-            const fullPath = '__predef__Ungrouped';
-            const isCollapsed = state.collapsedGroups.has(fullPath);
-            const expandIcon = isCollapsed ? '▶' : '▼';
-            html += `
-                <div class="group-section">
-                    <div class="group-header expandable" onclick="toggleGroup('${fullPath}')">
-                        <span class="expand-icon">${expandIcon}</span>
-                        <span class="group-name">Ungrouped</span>
-                    </div>
-                    ${!isCollapsed ? `<div class="group-content">${renderLayerTree(tree, '', false)}</div>` : ''}
-                </div>
-            `;
-        }
+    if (fingerprint === state.lastRenderFingerprint && container.children.length > 0) {
+        // Structure unchanged — update values in-place for stability
+        updateLayersIncremental(displayStep);
     } else {
-        // No predefined groups - apply recursive grouping based on layer_id paths
-        // Show all levels including top-level since there's no predefined grouping
-        const tree = buildLayerTree(displayStep.layers);
-        html = renderLayerTree(tree, '', false);
+        // Structure changed — full rebuild
+        container.innerHTML = buildLayersHTML(displayStep);
+        state.lastRenderFingerprint = fingerprint;
     }
-
-    container.innerHTML = html;
 
     // Draw pulse lines with historical context
     displayStep.layers.forEach(layer => {
