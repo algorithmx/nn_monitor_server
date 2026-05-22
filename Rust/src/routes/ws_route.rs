@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
@@ -40,6 +42,10 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
 
     let mut broadcast_rx = state.ws_manager.subscribe();
 
+    let mut heartbeat = tokio::time::interval(Duration::from_secs(30));
+    heartbeat.reset();
+    let mut last_pong = Instant::now();
+
     loop {
         tokio::select! {
             result = broadcast_rx.recv() => {
@@ -61,8 +67,19 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                     Some(Ok(Message::Text(text))) => {
                         handle_client_message(&text, &state, &mut sender).await;
                     }
+                    Some(Ok(Message::Pong(_))) => {
+                        last_pong = Instant::now();
+                    }
                     Some(Ok(Message::Close(_))) | None => break,
                     _ => {}
+                }
+            }
+            _ = heartbeat.tick() => {
+                if last_pong.elapsed() > Duration::from_secs(40) {
+                    break;
+                }
+                if let Err(e) = sender.send(Message::Ping(vec![].into())).await {
+                    tracing::error!(error = %e, "Failed to send heartbeat ping");
                 }
             }
         }
@@ -97,27 +114,35 @@ async fn handle_client_message(
                     state.ingest_stats.wait_for_accepted_items().await;
                     match state.store.build_run_history_message(run_id, lite).await {
                         Some(msg) => {
-                            let _ = sender.send(Message::Text(msg.into())).await;
+                            if let Err(e) = sender.send(Message::Text(msg.into())).await {
+                                tracing::error!(error = %e, "Failed to send subscribe_run response");
+                            }
                         }
                         None => {
                             let msg = crate::ws::build_error_message(&format!(
                                 "Run '{}' not found",
                                 run_id
                             ));
-                            let _ = sender.send(Message::Text(msg.into())).await;
+                            if let Err(e) = sender.send(Message::Text(msg.into())).await {
+                                tracing::error!(error = %e, "Failed to send error response to client");
+                            }
                         }
                     }
                 }
                 Some("ping") => {
                     let msg = crate::ws::build_pong_message();
-                    let _ = sender.send(Message::Text(msg.into())).await;
+                    if let Err(e) = sender.send(Message::Text(msg.into())).await {
+                        tracing::error!(error = %e, "Failed to send pong response");
+                    }
                 }
                 _ => {}
             }
         }
         Err(_) => {
             let msg = crate::ws::build_error_message("Invalid JSON format");
-            let _ = sender.send(Message::Text(msg.into())).await;
+            if let Err(e) = sender.send(Message::Text(msg.into())).await {
+                tracing::error!(error = %e, "Failed to send error response to client");
+            }
         }
     }
 }

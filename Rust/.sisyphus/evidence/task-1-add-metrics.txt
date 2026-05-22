@@ -1,0 +1,10 @@
+T1: add_metrics() Verification
+===============================
+
+All 3 integration tests that call add_metrics() pass:
+
+1. test_step_dedup_replaces_data — PASS
+2. test_run_eviction_after_max — PASS
+3. test_step_eviction_after_max — PASS
+
+add_metrics() is preserved with #[allow(dead_code)] + explanatory comment.

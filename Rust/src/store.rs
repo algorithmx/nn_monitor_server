@@ -2,13 +2,12 @@ use std::borrow::Cow;
 use std::collections::{HashMap as StdHashMap, HashSet};
 use std::sync::Arc;
 
-use chrono::Local;
 use hashbrown::HashMap;
 use serde::ser::{SerializeMap, Serializer};
 use serde::Serialize;
 use tokio::sync::{Mutex, RwLock};
 
-use crate::models::{LayerStatistic, MetricsPayload, RunData, RunInfo, StepData};
+use crate::models::{now_iso, LayerStatistic, MetricsPayload, RunData, RunInfo, StepData};
 
 // ==================== In-Memory Storage =====================
 
@@ -19,10 +18,6 @@ fn sanitize_layer_id(layer_id: &str) -> Cow<'_, str> {
     } else {
         Cow::Borrowed(layer_id)
     }
-}
-
-fn now_iso() -> String {
-    Local::now().format("%Y-%m-%dT%H:%M:%S%.6f").to_string()
 }
 
 pub struct MetricsStore {
@@ -174,6 +169,8 @@ impl MetricsStore {
         self
     }
 
+    // Note: called from integration tests (tests/test_storage.rs)
+    #[allow(dead_code)]
     pub async fn add_metrics(&self, payload: MetricsPayload) -> StepData {
         payload
             .validate()
@@ -257,7 +254,13 @@ impl MetricsStore {
 
         // Buffer to persist layer (after releasing state lock)
         if let Some(ref jsonl_store) = self.persist {
-            let _ = jsonl_store.buffer_step(&run_id, &step_data_for_persist).await;
+            if let Err(e) = jsonl_store.buffer_step(&run_id, &step_data_for_persist).await {
+                tracing::error!(
+                    run_id = %run_id,
+                    error = %e,
+                    "Failed to buffer step for persistence"
+                );
+            }
         }
     }
 
@@ -320,39 +323,6 @@ impl MetricsStore {
         Some(body)
     }
 
-    pub async fn get_all_runs(&self) -> StdHashMap<String, RunInfo> {
-        let mut combined: StdHashMap<String, RunInfo> = StdHashMap::new();
-
-        {
-            let state = self.state.read().await;
-            for (run_id, run) in &state.runs {
-                combined.insert(
-                    run_id.clone(),
-                    RunInfo {
-                        created_at: run.created_at.clone(),
-                        last_update: run.last_update.clone(),
-                        step_count: run.steps.len() as u32,
-                        latest_step: run.steps.last().map(|s| s.step),
-                    },
-                );
-            }
-        }
-
-        if let Some(ref jsonl_store) = self.persist {
-            let disk_runs = jsonl_store.scan_metadata().await;
-            for meta in disk_runs {
-                combined.entry(meta.run_id).or_insert(RunInfo {
-                    created_at: meta.created_at,
-                    last_update: meta.last_update,
-                    step_count: meta.step_count,
-                    latest_step: meta.latest_step,
-                });
-            }
-        }
-
-        combined
-    }
-
     pub async fn get_all_runs_json(&self) -> String {
         if self.persist.is_none() {
             let state = self.state.read().await;
@@ -389,14 +359,6 @@ impl MetricsStore {
         }
 
         serde_json::to_string(&combined).expect("run summaries serialization should never fail")
-    }
-
-    pub async fn get_latest_step(&self, run_id: &str) -> Option<StepData> {
-        let state = self.state.read().await;
-        state
-            .runs
-            .get(run_id)
-            .and_then(|run| run.steps.last().cloned())
     }
 
     pub async fn get_latest_step_json(&self, run_id: &str) -> Option<String> {
@@ -804,8 +766,12 @@ mod tests {
         store.add_metrics(p).await;
 
         let latest = store
-            .get_latest_step("run1")
+            .get_run("run1")
             .await
+            .expect("should have run")
+            .steps
+            .last()
+            .cloned()
             .expect("should have latest step");
         assert_eq!(
             latest.step, 150,
@@ -1202,87 +1168,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_latest_step_nonexistent() {
-        let store = MetricsStore::new(10, 1000);
-
-        let result = store.get_latest_step("ghost_run").await;
-        assert!(
-            result.is_none(),
-            "get_latest_step should return None for non-existent run_id"
-        );
-
-        let p = make_payload("existing_run", 1);
-        store.add_metrics(p).await;
-
-        let result = store.get_latest_step("still_nonexistent").await;
-        assert!(
-            result.is_none(),
-            "get_latest_step should return None when run exists but queried run_id does not"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_all_runs_empty() {
-        let store = MetricsStore::new(10, 1000);
-
-        let all_runs = store.get_all_runs().await;
-        assert!(
-            all_runs.is_empty(),
-            "get_all_runs should return empty HashMap when no runs exist"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_all_runs_multiple() {
-        let store = MetricsStore::new(10, 1000);
-
-        let p = make_payload("run_a", 1);
-        store.add_metrics(p).await;
-        tokio::time::sleep(std::time::Duration::from_millis(15)).await;
-
-        let p = make_payload("run_b", 10);
-        store.add_metrics(p).await;
-        let p = make_payload("run_b", 20);
-        store.add_metrics(p).await;
-        tokio::time::sleep(std::time::Duration::from_millis(15)).await;
-
-        let p = make_payload("run_c", 100);
-        store.add_metrics(p).await;
-        let p = make_payload("run_c", 200);
-        store.add_metrics(p).await;
-        let p = make_payload("run_c", 300);
-        store.add_metrics(p).await;
-
-        let all_runs = store.get_all_runs().await;
-        assert_eq!(all_runs.len(), 3, "should have 3 runs");
-
-        let info_a = all_runs.get("run_a").expect("run_a should exist");
-        assert_eq!(info_a.step_count, 1);
-        assert_eq!(info_a.latest_step, Some(1));
-
-        let info_b = all_runs.get("run_b").expect("run_b should exist");
-        assert_eq!(info_b.step_count, 2);
-        assert_eq!(info_b.latest_step, Some(20));
-
-        let info_c = all_runs.get("run_c").expect("run_c should exist");
-        assert_eq!(info_c.step_count, 3);
-        assert_eq!(info_c.latest_step, Some(300));
-
-        for (name, info) in all_runs {
-            assert!(
-                !info.created_at.is_empty(),
-                "{} created_at should not be empty",
-                name
-            );
-            assert!(
-                !info.last_update.is_empty(),
-                "{} last_update should not be empty",
-                name
-            );
-        }
-    }
-
-    #[tokio::test]
     async fn test_add_metrics_preserves_cross_layer() {
         let store = MetricsStore::new(10, 1000);
 
@@ -1339,12 +1224,6 @@ mod tests {
             );
         }
 
-        let all_runs = store.get_all_runs().await;
-        assert_eq!(
-            all_runs.len(),
-            num_tasks,
-            "total run count should match number of concurrent tasks"
-        );
     }
 
     #[tokio::test]
@@ -1356,7 +1235,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
 
         let jsonl_store = Arc::new(
-            crate::persist::JsonlStore::new(dir.clone(), std::time::Duration::from_secs(60)).await,
+            crate::persist::JsonlStore::new(dir.clone(), std::time::Duration::from_secs(60), 100).await,
         );
         let max_runs = 5;
         let store = MetricsStore::new(max_runs, 1000).with_persist(Arc::clone(&jsonl_store));
@@ -1387,7 +1266,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
 
         let jsonl_store = Arc::new(
-            crate::persist::JsonlStore::new(dir.clone(), std::time::Duration::from_secs(60)).await,
+            crate::persist::JsonlStore::new(dir.clone(), std::time::Duration::from_secs(60), 100).await,
         );
         let max_runs = 5;
         let store = Arc::new(
@@ -1434,7 +1313,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
 
         let jsonl_store = Arc::new(
-            crate::persist::JsonlStore::new(dir.clone(), std::time::Duration::from_secs(60)).await,
+            crate::persist::JsonlStore::new(dir.clone(), std::time::Duration::from_secs(60), 100).await,
         );
         let store = MetricsStore::new(10, 1000).with_persist(Arc::clone(&jsonl_store));
 
@@ -1448,6 +1327,43 @@ mod tests {
         let msg = fresh_store.build_initial_runs_message().await;
         assert!(msg.contains("disk_run"), "message should include disk-persisted run");
         assert!(msg.contains("initial_runs"), "message should be initial_runs type");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_build_initial_runs_message_with_memory_runs() {
+        let store = MetricsStore::new(10, 1000);
+
+        let p = make_payload("run_1", 1);
+        store.add_metrics(p).await;
+
+        let msg = store.build_initial_runs_message().await;
+        let v: serde_json::Value = serde_json::from_str(&msg).unwrap();
+        assert_eq!(v["type"], "initial_runs");
+        assert!(v["data"]["run_1"].is_object());
+    }
+
+    #[tokio::test]
+    async fn test_persist_error_is_logged() {
+        let dir = std::env::temp_dir().join(format!(
+            "nn_monitor_test_persist_err_{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let jsonl_store = Arc::new(
+            crate::persist::JsonlStore::new(dir.clone(), std::time::Duration::from_secs(60), 100).await,
+        );
+        let store = MetricsStore::new(10, 1000).with_persist(Arc::clone(&jsonl_store));
+
+        let p = make_payload("resilient_run", 42);
+        let step = store.add_metrics(p).await;
+        assert_eq!(step.step, 42, "step should be stored correctly");
+
+        let run = store.get_run("resilient_run").await.expect("run should exist");
+        assert_eq!(run.steps.len(), 1, "should have 1 step");
+        assert_eq!(run.steps[0].step, 42, "step number should match");
 
         let _ = std::fs::remove_dir_all(&dir);
     }

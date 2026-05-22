@@ -1,0 +1,23 @@
+Task 2 — WebSocket Tests Pass with Common Builder
+====================================================
+Date: 2026-05-21
+
+Steps:
+1. Run `cargo test --test test_websocket`
+
+Result:
+running 12 tests
+test test_ws_connect_and_initial_runs ... ok
+test test_ws_ping_pong ... ok
+test test_ws_subscribe_run_not_found ... ok
+test test_ws_invalid_json ... ok
+test test_ws_broadcast_new_metrics ... ok
+test test_ws_subscribe_run_lite_mode ... ok
+test test_ws_subscribe_run_existing ... ok
+test test_ws_initial_runs_contains_existing_runs ... ok
+test test_ws_full_mode_includes_all_fields ... ok
+test test_ws_disconnect_decrements_count ... ok
+test test_ws_multiple_clients_broadcast ... ok
+test test_ws_unknown_action_ignored ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.02s

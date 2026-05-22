@@ -1,0 +1,20 @@
+T1: Dead Code Cleanup — Test Verification
+==========================================
+
+Full test suite: 244 tests, 0 failures
+
+Breakdown:
+- Unit tests (lib): 80 passed
+- Unit tests (bin): 80 passed
+- test_edge_cases: 15 passed
+- test_error_responses: 12 passed
+- test_metrics_endpoint: 15 passed
+- test_runs_endpoint: 15 passed
+- test_storage: 15 passed
+- test_websocket: 12 passed
+- Doc-tests: 0
+
+All add_metrics() integration tests:
+- test_step_dedup_replaces_data — PASS
+- test_run_eviction_after_max — PASS
+- test_step_eviction_after_max — PASS

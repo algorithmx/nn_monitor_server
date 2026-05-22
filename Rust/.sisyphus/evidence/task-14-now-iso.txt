@@ -1,0 +1,11 @@
+=== Task 14: now_iso() deduplication ===
+Date: 2026-05-21
+
+Command: grep -rn "fn now_iso" src/
+Expected: Exactly 1 match in src/models.rs
+Result: PASS ✅
+
+Match:
+  src/models.rs:258:pub(crate) fn now_iso() -> String {
+
+Only one definition across entire src/ tree.

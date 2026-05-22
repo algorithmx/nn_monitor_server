@@ -1,0 +1,23 @@
+=== Task 14: Smoke Test ===
+Date: 2026-05-21
+
+Command: RUST_LOG=info timeout 3 ./target/release/nn_monitor_server 2>&1
+Expected: Server starts, banner via tracing::info!
+
+Output:
+2026-05-21T09:21:49.849672Z  INFO nn_monitor_server: ==================================================
+2026-05-21T09:21:49.849684Z  INFO nn_monitor_server: NN Training Monitor Server (Rust)
+2026-05-21T09:21:49.849686Z  INFO nn_monitor_server: ==================================================
+2026-05-21T09:21:49.849688Z  INFO nn_monitor_server: Server started successfully!
+2026-05-21T09:21:49.849689Z  INFO nn_monitor_server: Host: 0.0.0.0
+2026-05-21T09:21:49.849690Z  INFO nn_monitor_server: Port: 8000
+2026-05-21T09:21:49.849691Z  INFO nn_monitor_server: Access URL: http://localhost:8000
+2026-05-21T09:21:49.849693Z  INFO nn_monitor_server: WebSocket endpoint: ws://localhost:8000/ws
+2026-05-21T09:21:49.849694Z  INFO nn_monitor_server: Max concurrent runs: 10
+2026-05-21T09:21:49.849696Z  INFO nn_monitor_server: Max steps per run: 1000
+2026-05-21T09:21:49.849697Z  INFO nn_monitor_server: Data directory: ./data
+2026-05-21T09:21:49.849698Z  INFO nn_monitor_server: Flush timeout: 300s
+2026-05-21T09:21:49.849699Z  INFO nn_monitor_server: Ingest queue size: 4096
+2026-05-21T09:21:49.849701Z  INFO nn_monitor_server: ==================================================
+
+Result: PASS ✅ — Server starts cleanly, all messages via tracing::info!, no panics.

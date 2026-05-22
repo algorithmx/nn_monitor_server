@@ -1,3 +1,4 @@
+use chrono::Local;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use std::ops::Deref;
@@ -8,9 +9,13 @@ use std::ops::Deref;
 pub struct FiniteF64(f64);
 
 impl FiniteF64 {
+    // Used in tests
+    #[allow(dead_code)]
     pub fn value(&self) -> f64 {
         self.0
     }
+    // Used in tests
+    #[allow(dead_code)]
     pub fn new(v: f64) -> Result<Self, String> {
         if v.is_finite() {
             Ok(Self(v))
@@ -56,6 +61,8 @@ impl fmt::Display for FiniteF64 {
 pub struct NonNegativeF64(FiniteF64);
 
 impl NonNegativeF64 {
+    // Used in tests
+    #[allow(dead_code)]
     pub fn value(&self) -> f64 {
         self.0.value()
     }
@@ -247,10 +254,9 @@ pub struct HealthResponse {
     pub dropped_count: u64,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct ErrorDetail {
-    pub error: String,
-    pub message: String,
+/// Shared ISO-formatted timestamp utility.
+pub(crate) fn now_iso() -> String {
+    Local::now().format("%Y-%m-%dT%H:%M:%S%.6f").to_string()
 }
 
 /// Sanitize a run_id for safe use as a file or directory name.

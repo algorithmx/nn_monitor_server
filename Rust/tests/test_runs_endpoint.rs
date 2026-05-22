@@ -245,6 +245,31 @@ async fn test_run_data_has_steps() {
 }
 
 #[tokio::test]
+async fn test_cors_headers_present_on_get_runs() {
+    let server = TestServer::new(build_test_app()).unwrap();
+
+    let response = server
+        .get("/api/v1/runs")
+        .add_header("Origin", "https://example.com")
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::OK);
+    assert!(
+        response
+            .headers()
+            .contains_key("access-control-allow-origin"),
+        "CORS Access-Control-Allow-Origin header should be present"
+    );
+    assert_eq!(
+        response.headers()["access-control-allow-origin"]
+            .to_str()
+            .unwrap(),
+        "*",
+        "CORS origin should allow all origins (test app is permissive)"
+    );
+}
+
+#[tokio::test]
 async fn test_latest_step_has_layers() {
     let server = TestServer::new(build_test_app()).unwrap();
 

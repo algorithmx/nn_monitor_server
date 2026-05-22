@@ -2,9 +2,9 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::sync::broadcast;
 
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::json;
 
-use crate::models::{RunData, RunInfo, StepData};
+use crate::models::{RunData, StepData};
 
 // ==================== WebSocket Manager ====================
 
@@ -76,20 +76,6 @@ struct TypedMessage<'a, T: Serialize + ?Sized> {
     #[serde(skip_serializing_if = "Option::is_none")]
     run_id: Option<&'a str>,
     data: &'a T,
-}
-
-/// Build `initial_runs` message sent on WebSocket connect.
-pub fn build_initial_runs_message(runs: &std::collections::HashMap<String, RunInfo>) -> String {
-    let runs_map: serde_json::Map<String, Value> = runs
-        .iter()
-        .map(|(id, info)| (id.clone(), serde_json::to_value(info).unwrap()))
-        .collect();
-
-    json!({
-        "type": "initial_runs",
-        "data": Value::Object(runs_map)
-    })
-    .to_string()
 }
 
 /// Build `new_metrics` broadcast message.
@@ -222,7 +208,7 @@ pub fn build_pong_message() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
+    use serde_json::Value;
 
     fn test_layer() -> crate::models::LayerStatistic {
         serde_json::from_value(json!({
@@ -310,24 +296,6 @@ mod tests {
         let msg = build_pong_message();
         let v: Value = serde_json::from_str(&msg).unwrap();
         assert_eq!(v["type"], "pong");
-    }
-
-    #[test]
-    fn test_build_initial_runs_message() {
-        let mut runs = HashMap::new();
-        runs.insert(
-            "run_1".to_string(),
-            RunInfo {
-                created_at: "2024-01-01".to_string(),
-                last_update: "2024-01-02".to_string(),
-                step_count: 10,
-                latest_step: Some(9),
-            },
-        );
-        let msg = build_initial_runs_message(&runs);
-        let v: Value = serde_json::from_str(&msg).unwrap();
-        assert_eq!(v["type"], "initial_runs");
-        assert!(v["data"]["run_1"].is_object());
     }
 
     #[test]
@@ -420,5 +388,28 @@ mod tests {
         assert_eq!(v["type"], "new_metrics");
         assert_eq!(v["run_id"], "run_1");
         assert_eq!(v["data"]["step"], 42);
+    }
+
+    #[test]
+    fn test_ws_send_error_logged_on_disconnect() {
+        // Simulate disconnected client: subscribe then drop receiver
+        let mgr = WsManager::new();
+        let rx = mgr.subscribe();
+        drop(rx); // client disconnect
+
+        // Broadcast after all receivers dropped should not panic
+        mgr.broadcast("after disconnect".to_string());
+
+        // New subscribers should still work after prior disconnect
+        let mut rx2 = mgr.subscribe();
+        mgr.broadcast("new subscriber".to_string());
+        let msg = rx2.try_recv().unwrap();
+        assert_eq!(msg, "new subscriber");
+
+        // Connection counting unaffected by broadcast failures
+        mgr.connect();
+        assert_eq!(mgr.active_count(), 1);
+        mgr.disconnect();
+        assert_eq!(mgr.active_count(), 0);
     }
 }

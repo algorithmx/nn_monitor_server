@@ -1,6 +1,6 @@
 ## Project Overview
 
-This is a **Neural Network Training Monitor Server** - a FastAPI backend that provides real-time monitoring of neural network training metrics. It serves as a lightweight alternative to TensorBoard/WandB, focusing on layer-wise granularity (activations, gradients, parameters per layer) with async HTTP POST ingestion and WebSocket real-time visualization.
+This is a **Neural Network Training Monitor Server** - an Axum backend that provides real-time monitoring of neural network training metrics. It serves as a lightweight alternative to TensorBoard/WandB, focusing on layer-wise granularity (activations, gradients, parameters per layer) with async HTTP POST ingestion and WebSocket real-time visualization.
 
 ## Running the Server
 
@@ -15,6 +15,9 @@ cargo run
 ## Testing
 
 ```bash
+# Run unit and integration tests
+cargo test
+
 # Run the test client (simulates training with fake metrics)
 python test_client.py
 
@@ -36,10 +39,10 @@ curl http://localhost:8000/health
 
 ### Key Components
 
-- **`ServerConfig`** (main.py:21-38): Environment-based configuration using pydantic-settings
-- **`MetricsStore`** (main.py:250-326): Thread-safe in-memory storage with async locks, automatic eviction of oldest runs, step deduplication, and sorted step indexing
-- **`ConnectionManager`** (main.py:334-366): WebSocket connection lifecycle with automatic cleanup of failed connections
-- **Pydantic models** (main.py:47-237): Schema validation for hierarchical metrics structure
+- **`ServerConfig`** (config.rs:35-60): Environment-based configuration
+- **`MetricsStore`** (store.rs:161-346): Thread-safe in-memory storage with async locks, automatic eviction of oldest runs, step deduplication, and sorted step indexing
+- **`WsManager`** (ws.rs:17-66): WebSocket connection lifecycle with automatic cleanup of failed connections
+- **Serde models** (models.rs:96-237): Schema validation for hierarchical metrics structure
 
 ### JSON Schema
 
@@ -60,9 +63,9 @@ See **`CONFIGURATION.md`** for environment variable configuration options includ
 
 ## Development Notes
 
-- All storage operations use `async with self._lock` for thread safety
+- All storage operations use `tokio::sync::RwLock` for async safety
 - WebSocket broadcasts silently drop failed connections (automatic cleanup)
 - Metrics are accepted synchronously but processed asynchronously to avoid blocking training
-- The server has no database persistence - all data is in-memory and lost on restart
+- Optional JSONL persistence to disk: configure `NN_MONITOR_DATA_DIR` to persist metrics between restarts
 - Storage limits prevent unbounded memory growth: configure via `NN_MONITOR_MAX_RUNS` and `NN_MONITOR_MAX_STEPS_PER_RUN` environment variables
 - The frontend supports **Time Travel History Navigation** - see `docs/FEATURES.md` for details

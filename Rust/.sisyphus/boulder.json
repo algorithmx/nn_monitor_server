@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "active_work_id": "rust-hardening-eb1f3a29",
+  "works": {
+    "jsonl-persistence-423a1647": {
+      "work_id": "jsonl-persistence-423a1647",
+      "active_plan": "/AI/Nutstore/Work/Project/nn_monitor_server/Rust/.sisyphus/plans/jsonl-persistence.md",
+      "plan_name": "jsonl-persistence",
+      "status": "completed",
+      "started_at": "2026-05-20T14:05:25.537Z",
+      "updated_at": "2026-05-20T15:06:36.548Z",
+      "ended_at": "2026-05-20T15:05:50.134Z",
+      "agent": "atlas"
+    },
+    "rust-hardening-eb1f3a29": {
+      "work_id": "rust-hardening-eb1f3a29",
+      "active_plan": "/AI/Nutstore/Work/Project/nn_monitor_server/Rust/.sisyphus/plans/rust-hardening.md",
+      "plan_name": "rust-hardening",
+"status": "completed",
+  "started_at": "2026-05-21T08:27:05.840Z",
+  "updated_at": "2026-05-21T08:45:00.000Z",
+  "ended_at": "2026-05-21T08:45:00.000Z",
+  "session_ids": [
+    "ses_1b6cdb322ffeapo1wPipQ1fdwI"
+  ],
+  "session_origins": {
+    "ses_1b6cdb322ffeapo1wPipQ1fdwI": "direct"
+  },
+  "agent": "atlas",
+  "task_sessions": {}
+}
+  },
+  "active_plan": "/AI/Nutstore/Work/Project/nn_monitor_server/Rust/.sisyphus/plans/rust-hardening.md",
+  "started_at": "2026-05-21T08:27:05.840Z",
+  "status": "completed",
+  "updated_at": "2026-05-21T08:45:00.000Z",
+  "ended_at": "2026-05-21T08:45:00.000Z",
+  "session_ids": [
+    "ses_1b6cdb322ffeapo1wPipQ1fdwI"
+  ],
+  "session_origins": {
+    "ses_1b6cdb322ffeapo1wPipQ1fdwI": "direct"
+  },
+  "plan_name": "rust-hardening",
+  "task_sessions": {},
+  "agent": "atlas"
+}

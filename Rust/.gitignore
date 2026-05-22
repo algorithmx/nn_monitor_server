@@ -5,3 +5,7 @@ __pycache__/
 .venv/
 .claude/
 .vscode/
+.env
+Rust/example_client/data/
+example_client/data/
+TODO

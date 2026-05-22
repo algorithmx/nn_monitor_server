@@ -1,0 +1,9 @@
+Task 2 — No Duplicated build_ws_test_app Function
+====================================================
+Date: 2026-05-21
+
+Steps:
+1. Run `grep -rn "build_ws_test_app" tests/`
+
+Result:
+No matches found — function fully deleted from test_websocket.rs

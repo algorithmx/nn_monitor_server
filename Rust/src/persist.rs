@@ -7,7 +7,7 @@ use chrono::{DateTime, Local, Utc};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::Mutex;
 
-use crate::models::{sanitize_filename, RunData, StepData};
+use crate::models::{now_iso, sanitize_filename, RunData, StepData};
 
 // ==================== Error ====================
 
@@ -68,14 +68,11 @@ struct PersistState {
 pub struct JsonlStore {
     data_dir: PathBuf,
     flush_timeout: Duration,
+    max_buffer_size: usize,
     state: Mutex<PersistState>,
 }
 
 // ==================== Helpers ====================
-
-fn now_iso() -> String {
-    Local::now().format("%Y-%m-%dT%H:%M:%S%.6f").to_string()
-}
 
 fn timestamp_to_iso(ts: f64) -> String {
     let secs = ts as i64;
@@ -92,20 +89,21 @@ fn timestamp_to_iso(ts: f64) -> String {
 // ==================== Implementation ====================
 
 impl JsonlStore {
-    pub async fn new(data_dir: PathBuf, flush_timeout: Duration) -> Self {
+    pub async fn new(data_dir: PathBuf, flush_timeout: Duration, max_buffer_size: usize) -> Self {
         tokio::fs::create_dir_all(&data_dir)
             .await
             .expect("Failed to create data directory");
         Self {
             data_dir,
             flush_timeout,
+            max_buffer_size,
             state: Mutex::new(PersistState {
                 buffers: HashMap::new(),
             }),
         }
     }
 
-    pub async fn buffer_step(&self, run_id: &str, step: &StepData) {
+    pub async fn buffer_step(&self, run_id: &str, step: &StepData) -> Result<(), PersistError> {
         let mut state = self.state.lock().await;
         let entry = state
             .buffers
@@ -115,7 +113,13 @@ impl JsonlStore {
                 last_activity: Instant::now(),
             });
         entry.steps.push(step.clone());
+        if entry.steps.len() > self.max_buffer_size {
+            let excess = entry.steps.len() - self.max_buffer_size;
+            entry.steps.drain(0..excess);
+            tracing::warn!("Buffer for run {} exceeded max size, drained {} oldest steps", run_id, excess);
+        }
         entry.last_activity = Instant::now();
+        Ok(())
     }
 
     pub async fn flush_run(&self, run_id: &str) -> Result<(), PersistError> {
@@ -368,11 +372,11 @@ mod tests {
     #[tokio::test]
     async fn test_jsonl_write_and_read_roundtrip() {
         let dir = temp_dir("nn_monitor_test_roundtrip");
-        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60)).await;
+        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60), 100).await;
 
         let steps = vec![make_step(1), make_step(2), make_step(3)];
         for s in &steps {
-            store.buffer_step("test_run", s).await;
+            store.buffer_step("test_run", s).await.unwrap();
         }
         store.flush_run("test_run").await.unwrap();
 
@@ -393,11 +397,11 @@ mod tests {
     #[tokio::test]
     async fn test_jsonl_scan_metadata() {
         let dir = temp_dir("nn_monitor_test_scan");
-        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60)).await;
+        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60), 100).await;
 
         let steps = vec![make_step(10), make_step(20), make_step(30)];
         for s in &steps {
-            store.buffer_step("meta_run", s).await;
+            store.buffer_step("meta_run", s).await.unwrap();
         }
         store.flush_run("meta_run").await.unwrap();
 
@@ -414,7 +418,7 @@ mod tests {
     #[tokio::test]
     async fn test_jsonl_skip_malformed_lines() {
         let dir = temp_dir("nn_monitor_test_malformed");
-        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60)).await;
+        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60), 100).await;
 
         let file_path = dir.join("corrupt_run.jsonl");
         let valid1 = serde_json::to_string(&make_step(1)).unwrap();
@@ -433,11 +437,11 @@ mod tests {
     #[tokio::test]
     async fn test_flush_all_on_shutdown() {
         let dir = temp_dir("nn_monitor_test_flushall");
-        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60)).await;
+        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60), 100).await;
 
         for run_num in 1..=3u64 {
             let run_id = format!("run_{}", run_num);
-            store.buffer_step(&run_id, &make_step(run_num)).await;
+            store.buffer_step(&run_id, &make_step(run_num)).await.unwrap();
         }
 
         store.flush_all().await.unwrap();
@@ -459,7 +463,7 @@ mod tests {
     #[tokio::test]
     async fn test_empty_jsonl_file_handling() {
         let dir = temp_dir("nn_monitor_test_empty");
-        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60)).await;
+        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60), 100).await;
 
         let empty_path = dir.join("empty_run.jsonl");
         std::fs::write(&empty_path, "").unwrap();
@@ -476,10 +480,10 @@ mod tests {
     #[tokio::test]
     async fn test_run_id_sanitization_for_filename() {
         let dir = temp_dir("nn_monitor_test_sanitize");
-        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60)).await;
+        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60), 100).await;
 
         let malicious_id = "../../etc/passwd";
-        store.buffer_step(malicious_id, &make_step(1)).await;
+        store.buffer_step(malicious_id, &make_step(1)).await.unwrap();
         store.flush_run(malicious_id).await.unwrap();
 
         let sanitized = sanitize_filename(malicious_id);
@@ -499,10 +503,10 @@ mod tests {
     #[tokio::test]
     async fn test_max_steps_cap_on_lazy_load() {
         let dir = temp_dir("nn_monitor_test_maxsteps");
-        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60)).await;
+        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60), 100).await;
 
         for i in 1..=20u64 {
-            store.buffer_step("capped_run", &make_step(i)).await;
+            store.buffer_step("capped_run", &make_step(i)).await.unwrap();
         }
         store.flush_run("capped_run").await.unwrap();
 
@@ -510,6 +514,29 @@ mod tests {
         assert_eq!(loaded.steps.len(), 10, "should return only last 10 steps");
         assert_eq!(loaded.steps[0].step, 11, "first returned step should be 11");
         assert_eq!(loaded.steps[9].step, 20, "last returned step should be 20");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn test_buffer_cap_limits_size() {
+        let dir = temp_dir("nn_monitor_test_bufcap");
+        let store = JsonlStore::new(dir.clone(), Duration::from_secs(60), 5).await;
+
+        for i in 1..=7u64 {
+            store.buffer_step("cap_run", &make_step(i)).await.unwrap();
+        }
+
+        store.flush_run("cap_run").await.unwrap();
+
+        let loaded = store
+            .load_run("cap_run", 100)
+            .await
+            .unwrap()
+            .expect("should load");
+        assert_eq!(loaded.steps.len(), 5, "should cap at 5 buffered steps");
+        assert_eq!(loaded.steps[0].step, 3, "oldest step (1,2) drained");
+        assert_eq!(loaded.steps[4].step, 7, "newest step preserved");
 
         let _ = std::fs::remove_dir_all(&dir);
     }

@@ -337,3 +337,19 @@ async fn test_metrics_accepted_response_format() {
     );
     assert_eq!(body["run_id"], "fmt_test");
 }
+
+// ==================== Body Size Limit ====================
+
+#[tokio::test]
+async fn test_body_too_large_rejected_before_parsing_413() {
+    let server = TestServer::new(build_test_app()).unwrap();
+
+    // Create a body larger than 2MB (default max_request_size)
+    let large_body = "x".repeat(3_000_000);
+    let response = server
+        .post("/api/v1/metrics/layerwise")
+        .text(&large_body)
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::PAYLOAD_TOO_LARGE);
+}

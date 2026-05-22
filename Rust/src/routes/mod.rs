@@ -14,5 +14,4 @@ pub struct AppState {
     pub ws_manager: Arc<crate::ws::WsManager>,
     pub ingest_tx: mpsc::Sender<crate::ingest::IngestItem>,
     pub ingest_stats: Arc<crate::ingest::IngestStats>,
-    pub config: crate::config::ServerConfig,
 }

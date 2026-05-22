@@ -1,10 +1,7 @@
 mod common;
 
-use std::sync::Arc;
 use std::time::Duration;
 
-use axum::routing::{get, post};
-use axum::Router;
 use futures_util::{SinkExt, StreamExt};
 use reqwest::Client;
 use serde_json::Value;
@@ -15,61 +12,8 @@ use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 
 // ==================== Test Infrastructure ====================
 
-fn build_ws_test_app() -> Router {
-    let store = Arc::new(nn_monitor_server::store::MetricsStore::new(10, 1000));
-    let ws_manager = Arc::new(nn_monitor_server::ws::WsManager::new());
-    let (ingest_tx, ingest_rx, ingest_stats) = nn_monitor_server::ingest::channel(4096);
-    let _ingest_worker = nn_monitor_server::ingest::spawn_worker(
-        ingest_rx,
-        Arc::clone(&store),
-        Arc::clone(&ws_manager),
-        Arc::clone(&ingest_stats),
-    );
-    let state = nn_monitor_server::routes::AppState {
-        store,
-        ws_manager,
-        ingest_tx,
-        ingest_stats,
-        config: nn_monitor_server::config::ServerConfig {
-            max_runs: 10,
-            max_steps_per_run: 1000,
-            max_request_size: 2_000_000,
-            ingest_queue_size: 4096,
-            host: "0.0.0.0".to_string(),
-            port: 8000,
-            log_level: "warning".to_string(),
-            cors_origins: vec!["*".to_string()],
-            data_dir: "./data".to_string(),
-            flush_timeout_secs: 300,
-        },
-    };
-    Router::new()
-        .route(
-            "/api/v1/metrics/layerwise",
-            post(nn_monitor_server::routes::metrics::post_metrics),
-        )
-        .route(
-            "/api/v1/runs",
-            get(nn_monitor_server::routes::runs::get_runs),
-        )
-        .route(
-            "/api/v1/runs/{run_id}",
-            get(nn_monitor_server::routes::runs::get_run),
-        )
-        .route(
-            "/api/v1/runs/{run_id}/latest",
-            get(nn_monitor_server::routes::runs::get_latest_step),
-        )
-        .route(
-            "/health",
-            get(nn_monitor_server::routes::health::get_health),
-        )
-        .route("/ws", get(nn_monitor_server::routes::ws_route::ws_handler))
-        .with_state(state)
-}
-
 async fn start_test_server() -> (String, tokio::task::JoinHandle<()>) {
-    let app = build_ws_test_app();
+    let app = common::build_test_app();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let handle = tokio::spawn(async move {
@@ -526,5 +470,34 @@ async fn test_ws_full_mode_includes_all_fields() {
             ifeatures.contains_key("activation_mean"),
             "Full mode should include activation_mean"
         );
+    }
+}
+
+#[tokio::test]
+async fn test_ws_heartbeat_ping_received() {
+    let (ws_url, _handle) = start_test_server().await;
+    let mut ws = connect_ws(&ws_url).await;
+
+    // Read and discard initial_runs
+    let _initial = read_ws_message(&mut ws).await;
+
+    // Wait up to 35 seconds for a protocol-level Ping frame from the server
+    // (heartbeat ping interval is 30s, plus 5s safety margin)
+    let result = timeout(Duration::from_secs(35), async {
+        while let Some(msg) = ws.next().await {
+            match msg {
+                Ok(Message::Ping(_)) => return Some(()),
+                Ok(Message::Close(_)) => return None,
+                _ => continue,
+            }
+        }
+        None
+    })
+    .await;
+
+    match result {
+        Ok(Some(())) => {} // Ping received — success
+        Ok(None) => panic!("Connection closed before receiving heartbeat ping"),
+        Err(_) => panic!("Timeout: no heartbeat ping received within 35 seconds"),
     }
 }

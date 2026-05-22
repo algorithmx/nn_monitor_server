@@ -1,0 +1,8 @@
+=== Task 14: println! check ===
+Date: 2026-05-21
+
+Command: grep -c "println!" src/main.rs
+Expected: 0
+Result: 0 ✅
+
+All startup/shutdown messages use tracing::info!() — no raw println! calls.
